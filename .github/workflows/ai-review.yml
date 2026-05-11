@@ -15,12 +15,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 2
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -33,7 +33,7 @@ jobs:
         run: python backend/app/main.py --repo . --base HEAD~1 --head HEAD --output backend/reports/review_report.html
 
       - name: Upload review report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: review-report
           path: backend/reports/review_report.html
