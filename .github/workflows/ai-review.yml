@@ -1,0 +1,38 @@
+name: AI Review Report
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  generate-review-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
+
+      - name: Generate review report
+        run: python backend/app/main.py --repo ./sample-projects/python-demo --output backend/reports/review_report.html
+
+      - name: Upload review report
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-report
+          path: backend/reports/review_report.html
+          if-no-files-found: error
