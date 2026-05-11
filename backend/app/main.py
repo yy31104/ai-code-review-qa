@@ -11,10 +11,18 @@ from test_runner import run_tests
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate an AI code review QA report.")
+    parser = argparse.ArgumentParser(
+        description="Generate an AI code review QA report from a working-tree or commit-range diff."
+    )
     parser.add_argument("--repo", required=True, help="Path to the repository or project to review.")
     parser.add_argument("--output", required=True, help="Path for the generated HTML report.")
-    return parser.parse_args()
+    parser.add_argument("--base", help="Base git ref for commit range diff. Use with --head.")
+    parser.add_argument("--head", help="Head git ref for commit range diff. Use with --base.")
+
+    args = parser.parse_args()
+    if bool(args.base) != bool(args.head):
+        parser.error("--base and --head must be provided together.")
+    return args
 
 
 def main() -> int:
@@ -23,7 +31,7 @@ def main() -> int:
     output_path = Path(args.output).resolve()
 
     try:
-        git_result = read_git_diff(repo_path)
+        git_result = read_git_diff(repo_path, base=args.base, head=args.head)
         test_result = run_tests(repo_path)
         review = review_diff(git_result.diff, git_result.changed_files)
         review.automated_test_results = test_result

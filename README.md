@@ -11,7 +11,7 @@ Modern teams need fast feedback before code reaches human reviewers. This tool h
 ## Key Features
 
 - Python CLI for local review automation
-- Git diff and changed-file detection
+- Working-tree and commit-range Git diff detection
 - Automatic test command detection for Python, Node.js, and .NET projects
 - Pytest execution for the included sample project
 - Demo-mode structured AI review output
@@ -78,13 +78,27 @@ python -m pip install -r backend/requirements.txt
 
 ## CLI Usage
 
+### Local Working-Tree Review
+
 Run the MVP review workflow against the included sample Python project:
 
 ```bash
 python backend/app/main.py --repo ./sample-projects/python-demo --output backend/reports/review_report.html
 ```
 
-The command will:
+This mode inspects the current uncommitted working-tree diff for the target project.
+
+### Commit Range Review
+
+Run the review against an explicit Git commit range:
+
+```bash
+python backend/app/main.py --repo . --base HEAD~1 --head HEAD --output backend/reports/review_report.html
+```
+
+This mode compares `<base>..<head>` and is the mode used by GitHub Actions.
+
+Both modes will:
 
 - inspect Git changes for the target project
 - detect and run the appropriate test command
@@ -99,7 +113,7 @@ The workflow in `.github/workflows/ai-review.yml` runs on:
 - pull request to `main`
 - manual `workflow_dispatch`
 
-In CI, GitHub Actions checks out the repository, installs backend dependencies, runs the CLI, and uploads the generated report as an artifact named `review-report`.
+In CI, GitHub Actions checks out the repository, installs backend dependencies, runs the CLI with `--base HEAD~1 --head HEAD`, and uploads the generated report as an artifact named `review-report`.
 
 ## HTML Report Artifact
 

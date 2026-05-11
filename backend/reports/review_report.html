@@ -394,7 +394,7 @@
           <span class="engine-label">AI review engine</span>
           demo mode using structured AI review output
           &nbsp;&middot;&nbsp;
-          Generated <time>2026-05-11 18:56</time>
+          Generated <time>2026-05-11 21:56</time>
         </p>
       </div>
       <div style="padding-top:4px;">
@@ -406,7 +406,7 @@
     <div class="summary-grid">
       <div class="stat-card">
         <div class="stat-label">Changed Files</div>
-        <div class="stat-value">2</div>
+        <div class="stat-value">1</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Risk Level</div>
@@ -426,7 +426,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">Missing Tests</div>
-        <div class="stat-value">1</div>
+        <div class="stat-value">2</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Review Decision</div>
@@ -440,7 +440,7 @@
     <section class="section">
       <h2>Project Summary</h2>
       <div class="section-body">
-        <p>Reviewed 2 changed file(s) via the AI review engine. Running in demo mode using structured AI review output.</p>
+        <p>Reviewed 1 changed file(s) via the AI review engine. Running in demo mode using structured AI review output.</p>
       </div>
     </section>
 
@@ -448,12 +448,11 @@
     <section class="section">
       <h2>
         Changed Files
-        <span class="h2-count">2 file(s)</span>
+        <span class="h2-count">1 file(s)</span>
       </h2>
       <div class="section-body">
           <ul class="file-list">
-              <li>calculator.py</li>
-              <li>tests/test_calculator.py</li>
+              <li>README.md</li>
           </ul>
       </div>
     </section>
@@ -466,7 +465,7 @@
       </h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>`calculator.py`: validate inputs at function boundaries — check for None, empty values, and unexpected types.</li>
+        <li>`README.md`: validate inputs at function boundaries — check for None, empty values, and unexpected types.</li>
         <li>Error paths may fail silently; confirm each failure branch returns a descriptive message or raises a typed exception.</li>
     </ul>
 
@@ -477,10 +476,11 @@
     <section class="section">
       <h2>
         Missing Tests
-        <span class="h2-count">1 item(s)</span>
+        <span class="h2-count">2 item(s)</span>
       </h2>
       <div class="section-body">
             <ul class="finding-list">
+        <li>No test files detected in the changed set. Consider adding tests alongside `README.md`.</li>
         <li>Boundary-value coverage is missing: add tests for min/max inputs, empty collections, and off-by-one conditions.</li>
     </ul>
 
@@ -492,7 +492,7 @@
       <h2>Suggested Test Cases</h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>Happy-path: call the primary function in `calculator.py` with valid inputs and assert the expected return value.</li>
+        <li>Happy-path: call the primary function in `README.md` with valid inputs and assert the expected return value.</li>
         <li>Invalid-input: pass None, an empty string, or an out-of-range value and assert a clear error is raised.</li>
         <li>Regression: add a test that pins any behavior this change is specifically intended to fix or improve.</li>
     </ul>

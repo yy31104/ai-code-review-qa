@@ -18,7 +18,7 @@ def run_tests(repo_path: str | Path) -> TestResult:
             error=f"Repository path does not exist: {repo}",
         )
 
-    project_type, command, display_command = detect_test_command(repo)
+    project_type, command, display_command, test_cwd = detect_test_command(repo)
     if not command:
         return TestResult(
             project_type=project_type,
@@ -32,7 +32,7 @@ def run_tests(repo_path: str | Path) -> TestResult:
     try:
         result = subprocess.run(
             command,
-            cwd=repo,
+            cwd=test_cwd,
             capture_output=True,
             text=True,
             timeout=120,
@@ -68,22 +68,35 @@ def run_tests(repo_path: str | Path) -> TestResult:
     )
 
 
-def detect_test_command(repo: Path) -> tuple[str, list[str], str]:
+def detect_test_command(repo: Path) -> tuple[str, list[str], str, Path]:
     if any(repo.rglob("*.csproj")):
-        return "dotnet", ["dotnet", "test"], "dotnet test"
+        return "dotnet", ["dotnet", "test"], "dotnet test", repo
 
     if (repo / "package.json").exists():
-        return "node", ["npm", "test"], "npm test"
+        return "node", ["npm", "test"], "npm test", repo
 
-    if _looks_like_python_project(repo):
-        return "python", [sys.executable, "-m", "pytest"], "pytest"
+    python_project = _find_python_project(repo)
+    if python_project:
+        return "python", [sys.executable, "-m", "pytest"], "pytest", python_project
 
-    return "unknown", [], ""
+    return "unknown", [], "", repo
 
 
-def _looks_like_python_project(repo: Path) -> bool:
+def _find_python_project(repo: Path) -> Path | None:
+    ignored_dirs = {".git", ".pytest_cache", "__pycache__", "node_modules", ".venv"}
     markers = ["pytest.ini", "pyproject.toml", "requirements.txt"]
-    return any((repo / marker).exists() for marker in markers)
+
+    for marker in markers:
+        direct_marker = repo / marker
+        if direct_marker.exists():
+            return repo
+
+        for path in sorted(repo.rglob(marker)):
+            if any(part in ignored_dirs for part in path.parts):
+                continue
+            return path.parent
+
+    return None
 
 
 def _extract_summary(output: str, project_type: str) -> str:

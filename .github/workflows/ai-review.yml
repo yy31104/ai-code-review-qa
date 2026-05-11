@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -28,7 +30,7 @@ jobs:
           python -m pip install -r backend/requirements.txt
 
       - name: Generate review report
-        run: python backend/app/main.py --repo ./sample-projects/python-demo --output backend/reports/review_report.html
+        run: python backend/app/main.py --repo . --base HEAD~1 --head HEAD --output backend/reports/review_report.html
 
       - name: Upload review report
         uses: actions/upload-artifact@v4

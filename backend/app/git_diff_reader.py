@@ -12,13 +12,16 @@ class GitDiffResult:
     error: str | None = None
 
 
-def read_git_diff(repo_path: str | Path) -> GitDiffResult:
+def read_git_diff(repo_path: str | Path, base: str | None = None, head: str | None = None) -> GitDiffResult:
     """Read git diff output and changed files for a repository path."""
     repo = Path(repo_path).resolve()
     if not repo.exists() or not repo.is_dir():
         return GitDiffResult("", [], f"Repository path does not exist: {repo}")
 
     if not _is_git_repo(repo):
+        if base or head:
+            return GitDiffResult("", [], "Commit range diff requires a git repository.")
+
         files = _list_project_files(repo)
         return GitDiffResult(
             diff="",
@@ -27,6 +30,32 @@ def read_git_diff(repo_path: str | Path) -> GitDiffResult:
         )
 
     git_prefix = _git_prefix(repo)
+    if base and head:
+        return _read_commit_range_diff(repo, git_prefix, base, head)
+
+    return _read_working_tree_diff(repo, git_prefix)
+
+
+def _read_commit_range_diff(repo: Path, git_prefix: str, base: str, head: str) -> GitDiffResult:
+    range_spec = f"{base}..{head}"
+    names_result = _run_git(repo, ["diff", "--name-only", range_spec])
+    diff_result = _run_git(repo, ["diff", range_spec])
+
+    changed_files = set(_normalize_paths(_split_lines(names_result.stdout), repo, git_prefix))
+
+    error_parts = []
+    for result in (names_result, diff_result):
+        if result.returncode != 0 and result.stderr:
+            error_parts.append(result.stderr.strip())
+
+    return GitDiffResult(
+        diff=diff_result.stdout.strip(),
+        changed_files=sorted(changed_files),
+        error="; ".join(error_parts) or None,
+    )
+
+
+def _read_working_tree_diff(repo: Path, git_prefix: str) -> GitDiffResult:
     diff_result = _run_git(repo, ["diff", "--", "."])
     names_result = _run_git(repo, ["diff", "--name-only", "--", "."])
     status_result = _run_git(repo, ["status", "--porcelain", "--untracked-files=all", "--", "."])
