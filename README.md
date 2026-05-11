@@ -19,6 +19,10 @@ Modern teams need fast feedback before code reaches human reviewers. This tool h
 - GitHub-style HTML report generated with Jinja2
 - GitHub Actions workflow that generates and uploads the report artifact
 
+## Sample Report Screenshot
+
+![AI Code Review Report](docs/screenshots/report-preview.png)
+
 ## Architecture / Workflow
 
 ```text
@@ -119,10 +123,6 @@ It includes:
 - human review decision
 
 The committed report is included as a sample portfolio artifact.
-
-## Sample Report Screenshot
-
-![AI Code Review Report](docs/screenshots/report-preview.png)
 
 ## Current MVP Status
 
