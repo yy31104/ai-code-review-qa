@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Code Review Report</title>
+  <style>
+    :root {
+      --bg: #f6f8fa;
+      --border: #d0d7de;
+      --muted: #57606a;
+      --text: #24292f;
+      --panel: #ffffff;
+      --accent: #0969da;
+      --success: #1a7f37;
+      --success-bg: #dafbe1;
+      --danger: #cf222e;
+      --danger-bg: #ffebe9;
+      --warning: #9a6700;
+      --warning-bg: #fff8c5;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+
+    main {
+      max-width: 1040px;
+      margin: 32px auto;
+      padding: 0 20px 60px;
+    }
+
+    /* ── Header ── */
+    .report-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 26px;
+      font-weight: 650;
+    }
+
+    .engine-label {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      background: #ddf4ff;
+      color: #0550ae;
+      border: 1px solid #54aeff66;
+      border-radius: 999px;
+      padding: 1px 8px;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 0;
+    }
+
+    .subtitle time {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* ── Summary grid ── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 14px 16px;
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: 650;
+      line-height: 1.2;
+    }
+
+    .stat-value-sm {
+      font-size: 14px;
+      font-weight: 650;
+      line-height: 1.4;
+    }
+
+    /* ── Sections ── */
+    .section {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      margin: 0;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      font-weight: 650;
+      background: #f6f8fa;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .h2-count {
+      font-weight: 400;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .section-body {
+      padding: 16px;
+    }
+
+    p { margin: 0; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 650;
+      line-height: 20px;
+      white-space: nowrap;
+    }
+
+    .badge-low, .badge-pass, .badge-lgtm {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid #84e4a080;
+    }
+
+    .badge-medium, .badge-conditional {
+      background: var(--warning-bg);
+      color: var(--warning);
+      border: 1px solid #d4a72c80;
+    }
+
+    .badge-high, .badge-fail, .badge-needs-review {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid #ff818266;
+    }
+
+    /* ── File list ── */
+    .file-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .file-list li {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #f6f8fa;
+      font-size: 12px;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    /* ── Finding list ── */
+    .finding-list {
+      padding-left: 20px;
+      margin: 0;
+    }
+
+    .finding-list li {
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .finding-list li:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    /* ── Code ── */
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    code {
+      font-size: 12px;
+      background: #f6f8fa;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+
+    pre {
+      overflow: auto;
+      margin: 0;
+      padding: 14px 16px;
+      border-radius: 6px;
+      background: #0d1117;
+      color: #c9d1d9;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    /* ── Test section ── */
+    .test-summary-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      padding: 10px 14px;
+      background: #f6f8fa;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    .test-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .test-meta-item {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #f6f8fa;
+      font-size: 13px;
+    }
+
+    .test-meta-item strong {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    /* ── Collapsible ── */
+    details {
+      margin-top: 8px;
+    }
+
+    details summary {
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      user-select: none;
+      padding: 3px 0;
+      list-style: none;
+    }
+
+    details summary::before {
+      content: "▶ ";
+      font-size: 10px;
+    }
+
+    details[open] summary::before {
+      content: "▼ ";
+    }
+
+    details summary:hover {
+      text-decoration: underline;
+    }
+
+    details[open] summary {
+      margin-bottom: 10px;
+    }
+
+    /* ── Decision block ── */
+    .decision-block {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .decision-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .decision-icon-high {
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+
+    .decision-icon-medium {
+      background: var(--warning-bg);
+      color: var(--warning);
+    }
+
+    .decision-icon-low {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .decision-content h3 {
+      margin: 0 0 6px;
+      font-size: 15px;
+      font-weight: 650;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .decision-content p {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .empty {
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 760px) {
+      .summary-grid,
+      .test-meta-grid {
+        grid-template-columns: 1fr;
+      }
+
+      main {
+        margin-top: 16px;
+        padding: 0 12px 40px;
+      }
+
+      .report-header {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+
+    <!-- ── Header ── -->
+    <div class="report-header">
+      <div>
+        <h1>AI Code Review Report</h1>
+        <p class="subtitle">
+          <span class="engine-label">AI review engine</span>
+          demo mode using structured AI review output
+          &nbsp;&middot;&nbsp;
+          Generated <time>2026-05-11 17:44</time>
+        </p>
+      </div>
+      <div style="padding-top:4px;">
+          <span class="badge badge-lgtm" style="font-size:13px;padding:4px 12px;">&#10003; LGTM</span>
+      </div>
+    </div>
+
+    <!-- ── Summary cards ── -->
+    <div class="summary-grid">
+      <div class="stat-card">
+        <div class="stat-label">Changed Files</div>
+        <div class="stat-value">3</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Risk Level</div>
+        <div class="stat-value" style="font-size:16px;margin-top:4px;">
+          <span class="badge badge-low">Low</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Tests</div>
+        <div class="stat-value" style="font-size:16px;margin-top:4px;">
+            <span class="badge badge-pass">&#10003; Passing</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Possible Bugs</div>
+        <div class="stat-value">3</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Missing Tests</div>
+        <div class="stat-value">1</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Review Decision</div>
+        <div class="stat-value-sm" style="margin-top:6px;">
+            <span class="badge badge-lgtm">LGTM</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Project Summary ── -->
+    <section class="section">
+      <h2>Project Summary</h2>
+      <div class="section-body">
+        <p>Reviewed 3 changed file(s) via the AI review engine. Running in demo mode using structured AI review output.</p>
+      </div>
+    </section>
+
+    <!-- ── Changed Files ── -->
+    <section class="section">
+      <h2>
+        Changed Files
+        <span class="h2-count">3 file(s)</span>
+      </h2>
+      <div class="section-body">
+          <ul class="file-list">
+              <li>calculator.py</li>
+              <li>pytest.ini</li>
+              <li>tests/test_calculator.py</li>
+          </ul>
+      </div>
+    </section>
+
+    <!-- ── Possible Bugs ── -->
+    <section class="section">
+      <h2>
+        Possible Bugs
+        <span class="h2-count">3 item(s)</span>
+      </h2>
+      <div class="section-body">
+            <ul class="finding-list">
+        <li>`calculator.py`: validate inputs at function boundaries — check for None, empty values, and unexpected types.</li>
+        <li>Error paths may fail silently; confirm each failure branch returns a descriptive message or raises a typed exception.</li>
+        <li>Files appear untracked in git — diff is empty, so line-level analysis is limited for this change set.</li>
+    </ul>
+
+      </div>
+    </section>
+
+    <!-- ── Missing Tests ── -->
+    <section class="section">
+      <h2>
+        Missing Tests
+        <span class="h2-count">1 item(s)</span>
+      </h2>
+      <div class="section-body">
+            <ul class="finding-list">
+        <li>Boundary-value coverage is missing: add tests for min/max inputs, empty collections, and off-by-one conditions.</li>
+    </ul>
+
+      </div>
+    </section>
+
+    <!-- ── Suggested Test Cases ── -->
+    <section class="section">
+      <h2>Suggested Test Cases</h2>
+      <div class="section-body">
+            <ul class="finding-list">
+        <li>Happy-path: call the primary function in `calculator.py` with valid inputs and assert the expected return value.</li>
+        <li>Invalid-input: pass None, an empty string, or an out-of-range value and assert a clear error is raised.</li>
+        <li>Regression: add a test that pins any behavior this change is specifically intended to fix or improve.</li>
+    </ul>
+
+      </div>
+    </section>
+
+    <!-- ── Security & Reliability ── -->
+    <section class="section">
+      <h2>Security &amp; Reliability Concerns</h2>
+      <div class="section-body">
+            <ul class="finding-list">
+        <li>Do not log secrets, tokens, or user-identifiable data — scrub sensitive fields before writing to any log sink.</li>
+        <li>Wrap subprocess calls and external I/O in try/except to prevent unhandled exceptions from crashing the process.</li>
+    </ul>
+
+      </div>
+    </section>
+
+    <!-- ── Automated Test Results ── -->
+    <section class="section">
+      <h2>Automated Test Results</h2>
+      <div class="section-body">
+
+        <!-- Short summary row -->
+        <div class="test-summary-row">
+            <span class="badge badge-pass">&#10003; Passed</span>
+          <span>
+            <strong>python</strong>
+              &mdash; 1 passed in 0.01s
+          </span>
+        </div>
+
+        <!-- Meta grid -->
+        <div class="test-meta-grid">
+          <div class="test-meta-item">
+            <strong>Command</strong>
+            <code>pytest</code>
+          </div>
+          <div class="test-meta-item">
+            <strong>Exit Code</strong>
+            0
+          </div>
+          <div class="test-meta-item">
+            <strong>Status</strong>
+            Passed
+          </div>
+        </div>
+
+
+          <details>
+            <summary>View full test output</summary>
+            <pre>============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.0.2, pluggy-1.6.0
+rootdir: C:\桌面\projects\ai-code-review-qa\sample-projects\python-demo
+configfile: pytest.ini
+testpaths: tests
+collected 1 item
+
+tests\test_calculator.py .                                               [100%]
+
+============================== 1 passed in 0.01s ==============================</pre>
+          </details>
+
+      </div>
+    </section>
+
+    <!-- ── Recommended Actions ── -->
+    <section class="section">
+      <h2>Recommended Actions</h2>
+      <div class="section-body">
+            <ul class="finding-list">
+        <li>Address the possible bugs listed above before requesting a final review.</li>
+        <li>Ensure all automated tests pass in CI before merging.</li>
+        <li>Expand test coverage around the highest-risk code paths identified in this report.</li>
+    </ul>
+
+      </div>
+    </section>
+
+    <!-- ── Review Decision ── -->
+    <section class="section">
+      <h2>Review Decision</h2>
+      <div class="section-body">
+        <div class="decision-block">
+          <div class="decision-icon decision-icon-low">&#10003;</div>
+          <div class="decision-content">
+            <h3>
+                <span class="badge badge-lgtm" style="font-size:13px;padding:3px 12px;">LGTM</span>
+            </h3>
+            <p>Low-risk changes. Safe to merge once all automated checks pass.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>

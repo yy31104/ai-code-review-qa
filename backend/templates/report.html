@@ -1,0 +1,627 @@
+{% macro list_items(items) -%}
+  {% if items %}
+    <ul class="finding-list">
+      {% for item in items %}
+        <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="empty">None reported.</p>
+  {% endif %}
+{%- endmacro %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Code Review Report</title>
+  <style>
+    :root {
+      --bg: #f6f8fa;
+      --border: #d0d7de;
+      --muted: #57606a;
+      --text: #24292f;
+      --panel: #ffffff;
+      --accent: #0969da;
+      --success: #1a7f37;
+      --success-bg: #dafbe1;
+      --danger: #cf222e;
+      --danger-bg: #ffebe9;
+      --warning: #9a6700;
+      --warning-bg: #fff8c5;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+
+    main {
+      max-width: 1040px;
+      margin: 32px auto;
+      padding: 0 20px 60px;
+    }
+
+    /* ── Header ── */
+    .report-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 26px;
+      font-weight: 650;
+    }
+
+    .engine-label {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      background: #ddf4ff;
+      color: #0550ae;
+      border: 1px solid #54aeff66;
+      border-radius: 999px;
+      padding: 1px 8px;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 0;
+    }
+
+    .subtitle time {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* ── Summary grid ── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 14px 16px;
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: 650;
+      line-height: 1.2;
+    }
+
+    .stat-value-sm {
+      font-size: 14px;
+      font-weight: 650;
+      line-height: 1.4;
+    }
+
+    /* ── Sections ── */
+    .section {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      margin: 0;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      font-weight: 650;
+      background: #f6f8fa;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .h2-count {
+      font-weight: 400;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .section-body {
+      padding: 16px;
+    }
+
+    p { margin: 0; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 650;
+      line-height: 20px;
+      white-space: nowrap;
+    }
+
+    .badge-low, .badge-pass, .badge-lgtm {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid #84e4a080;
+    }
+
+    .badge-medium, .badge-conditional {
+      background: var(--warning-bg);
+      color: var(--warning);
+      border: 1px solid #d4a72c80;
+    }
+
+    .badge-high, .badge-fail, .badge-needs-review {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid #ff818266;
+    }
+
+    /* ── File list ── */
+    .file-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .file-list li {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #f6f8fa;
+      font-size: 12px;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    /* ── Finding list ── */
+    .finding-list {
+      padding-left: 20px;
+      margin: 0;
+    }
+
+    .finding-list li {
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .finding-list li:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    /* ── Code ── */
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    code {
+      font-size: 12px;
+      background: #f6f8fa;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+
+    pre {
+      overflow: auto;
+      margin: 0;
+      padding: 14px 16px;
+      border-radius: 6px;
+      background: #0d1117;
+      color: #c9d1d9;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    /* ── Test section ── */
+    .test-summary-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      padding: 10px 14px;
+      background: #f6f8fa;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    .test-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .test-meta-item {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #f6f8fa;
+      font-size: 13px;
+    }
+
+    .test-meta-item strong {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    /* ── Collapsible ── */
+    details {
+      margin-top: 8px;
+    }
+
+    details summary {
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      user-select: none;
+      padding: 3px 0;
+      list-style: none;
+    }
+
+    details summary::before {
+      content: "▶ ";
+      font-size: 10px;
+    }
+
+    details[open] summary::before {
+      content: "▼ ";
+    }
+
+    details summary:hover {
+      text-decoration: underline;
+    }
+
+    details[open] summary {
+      margin-bottom: 10px;
+    }
+
+    /* ── Decision block ── */
+    .decision-block {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .decision-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .decision-icon-high {
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+
+    .decision-icon-medium {
+      background: var(--warning-bg);
+      color: var(--warning);
+    }
+
+    .decision-icon-low {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .decision-content h3 {
+      margin: 0 0 6px;
+      font-size: 15px;
+      font-weight: 650;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .decision-content p {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .empty {
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 760px) {
+      .summary-grid,
+      .test-meta-grid {
+        grid-template-columns: 1fr;
+      }
+
+      main {
+        margin-top: 16px;
+        padding: 0 12px 40px;
+      }
+
+      .report-header {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+
+    <!-- ── Header ── -->
+    <div class="report-header">
+      <div>
+        <h1>AI Code Review Report</h1>
+        <p class="subtitle">
+          <span class="engine-label">AI review engine</span>
+          demo mode using structured AI review output
+          &nbsp;&middot;&nbsp;
+          Generated <time>{{ generated_at }}</time>
+        </p>
+      </div>
+      <div style="padding-top:4px;">
+        {% if review.risk_level | lower == "high" %}
+          <span class="badge badge-needs-review" style="font-size:13px;padding:4px 12px;">&#9888; Needs Human Review</span>
+        {% elif review.risk_level | lower == "medium" %}
+          <span class="badge badge-conditional" style="font-size:13px;padding:4px 12px;">&#9888; Conditional Approval</span>
+        {% else %}
+          <span class="badge badge-lgtm" style="font-size:13px;padding:4px 12px;">&#10003; LGTM</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── Summary cards ── -->
+    <div class="summary-grid">
+      <div class="stat-card">
+        <div class="stat-label">Changed Files</div>
+        <div class="stat-value">{{ review.changed_files | length }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Risk Level</div>
+        <div class="stat-value" style="font-size:16px;margin-top:4px;">
+          <span class="badge badge-{{ review.risk_level | lower }}">{{ review.risk_level }}</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Tests</div>
+        <div class="stat-value" style="font-size:16px;margin-top:4px;">
+          {% if review.automated_test_results.passed %}
+            <span class="badge badge-pass">&#10003; Passing</span>
+          {% else %}
+            <span class="badge badge-fail">&#10007; Needs Attention</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Possible Bugs</div>
+        <div class="stat-value">{{ review.possible_bugs | length }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Missing Tests</div>
+        <div class="stat-value">{{ review.missing_tests | length }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Review Decision</div>
+        <div class="stat-value-sm" style="margin-top:6px;">
+          {% if review.risk_level | lower == "high" %}
+            <span class="badge badge-needs-review">Needs Human Review</span>
+          {% elif review.risk_level | lower == "medium" %}
+            <span class="badge badge-conditional">Conditional Approval</span>
+          {% else %}
+            <span class="badge badge-lgtm">LGTM</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Project Summary ── -->
+    <section class="section">
+      <h2>Project Summary</h2>
+      <div class="section-body">
+        <p>{{ review.project_summary }}</p>
+      </div>
+    </section>
+
+    <!-- ── Changed Files ── -->
+    <section class="section">
+      <h2>
+        Changed Files
+        <span class="h2-count">{{ review.changed_files | length }} file(s)</span>
+      </h2>
+      <div class="section-body">
+        {% if review.changed_files %}
+          <ul class="file-list">
+            {% for file in review.changed_files %}
+              <li>{{ file }}</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="empty">No changed files detected.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <!-- ── Possible Bugs ── -->
+    <section class="section">
+      <h2>
+        Possible Bugs
+        <span class="h2-count">{{ review.possible_bugs | length }} item(s)</span>
+      </h2>
+      <div class="section-body">
+        {{ list_items(review.possible_bugs) }}
+      </div>
+    </section>
+
+    <!-- ── Missing Tests ── -->
+    <section class="section">
+      <h2>
+        Missing Tests
+        <span class="h2-count">{{ review.missing_tests | length }} item(s)</span>
+      </h2>
+      <div class="section-body">
+        {{ list_items(review.missing_tests) }}
+      </div>
+    </section>
+
+    <!-- ── Suggested Test Cases ── -->
+    <section class="section">
+      <h2>Suggested Test Cases</h2>
+      <div class="section-body">
+        {{ list_items(review.suggested_test_cases) }}
+      </div>
+    </section>
+
+    <!-- ── Security & Reliability ── -->
+    <section class="section">
+      <h2>Security &amp; Reliability Concerns</h2>
+      <div class="section-body">
+        {{ list_items(review.security_reliability_concerns) }}
+      </div>
+    </section>
+
+    <!-- ── Automated Test Results ── -->
+    <section class="section">
+      <h2>Automated Test Results</h2>
+      <div class="section-body">
+
+        <!-- Short summary row -->
+        <div class="test-summary-row">
+          {% if review.automated_test_results.passed %}
+            <span class="badge badge-pass">&#10003; Passed</span>
+          {% else %}
+            <span class="badge badge-fail">&#10007; Failed</span>
+          {% endif %}
+          <span>
+            <strong>{{ review.automated_test_results.project_type }}</strong>
+            {% if review.automated_test_results.test_summary %}
+              &mdash; {{ review.automated_test_results.test_summary }}
+            {% elif review.automated_test_results.command %}
+              &mdash; ran <code>{{ review.automated_test_results.command }}</code>
+            {% elif not review.automated_test_results.passed and not review.automated_test_results.command %}
+              &mdash; tests not run
+            {% endif %}
+          </span>
+        </div>
+
+        <!-- Meta grid -->
+        <div class="test-meta-grid">
+          <div class="test-meta-item">
+            <strong>Command</strong>
+            <code>{{ review.automated_test_results.command or "not run" }}</code>
+          </div>
+          <div class="test-meta-item">
+            <strong>Exit Code</strong>
+            {{ review.automated_test_results.exit_code }}
+          </div>
+          <div class="test-meta-item">
+            <strong>Status</strong>
+            {{ "Passed" if review.automated_test_results.passed else "Failed / not run" }}
+          </div>
+        </div>
+
+        {% if review.automated_test_results.error %}
+          <p style="color:var(--danger);margin-bottom:12px;">
+            <strong>Error:</strong> {{ review.automated_test_results.error }}
+          </p>
+        {% endif %}
+
+        {% if review.automated_test_results.output %}
+          <details>
+            <summary>View full test output</summary>
+            <pre>{{ review.automated_test_results.output }}</pre>
+          </details>
+        {% else %}
+          <p class="empty">No test output captured.</p>
+        {% endif %}
+
+      </div>
+    </section>
+
+    <!-- ── Recommended Actions ── -->
+    <section class="section">
+      <h2>Recommended Actions</h2>
+      <div class="section-body">
+        {{ list_items(review.recommended_actions) }}
+      </div>
+    </section>
+
+    <!-- ── Review Decision ── -->
+    <section class="section">
+      <h2>Review Decision</h2>
+      <div class="section-body">
+        <div class="decision-block">
+          {% if review.risk_level | lower == "high" %}
+          <div class="decision-icon decision-icon-high">!</div>
+          {% elif review.risk_level | lower == "medium" %}
+          <div class="decision-icon decision-icon-medium">~</div>
+          {% else %}
+          <div class="decision-icon decision-icon-low">&#10003;</div>
+          {% endif %}
+          <div class="decision-content">
+            <h3>
+              {% if review.risk_level | lower == "high" %}
+                <span class="badge badge-needs-review" style="font-size:13px;padding:3px 12px;">Needs Human Review</span>
+              {% elif review.risk_level | lower == "medium" %}
+                <span class="badge badge-conditional" style="font-size:13px;padding:3px 12px;">Conditional Approval</span>
+              {% else %}
+                <span class="badge badge-lgtm" style="font-size:13px;padding:3px 12px;">LGTM</span>
+              {% endif %}
+            </h3>
+            <p>{{ review.human_review_decision }}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>
