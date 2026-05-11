@@ -122,13 +122,7 @@ The committed report is included as a sample portfolio artifact.
 
 ## Sample Report Screenshot
 
-Screenshot placeholder:
-
-```text
-docs/images/sample-report-screenshot.png
-```
-
-Add a screenshot of `backend/reports/review_report.html` here when preparing the final portfolio presentation.
+![AI Code Review Report](docs/screenshots/report-preview.png)
 
 ## Current MVP Status
 

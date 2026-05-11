@@ -394,7 +394,7 @@
           <span class="engine-label">AI review engine</span>
           demo mode using structured AI review output
           &nbsp;&middot;&nbsp;
-          Generated <time>2026-05-11 18:17</time>
+          Generated <time>2026-05-11 18:56</time>
         </p>
       </div>
       <div style="padding-top:4px;">
@@ -406,7 +406,7 @@
     <div class="summary-grid">
       <div class="stat-card">
         <div class="stat-label">Changed Files</div>
-        <div class="stat-value">0</div>
+        <div class="stat-value">2</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Risk Level</div>
@@ -426,7 +426,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">Missing Tests</div>
-        <div class="stat-value">2</div>
+        <div class="stat-value">1</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Review Decision</div>
@@ -440,7 +440,7 @@
     <section class="section">
       <h2>Project Summary</h2>
       <div class="section-body">
-        <p>No changed files were detected by git diff. Running in demo mode using structured AI review output.</p>
+        <p>Reviewed 2 changed file(s) via the AI review engine. Running in demo mode using structured AI review output.</p>
       </div>
     </section>
 
@@ -448,10 +448,13 @@
     <section class="section">
       <h2>
         Changed Files
-        <span class="h2-count">0 file(s)</span>
+        <span class="h2-count">2 file(s)</span>
       </h2>
       <div class="section-body">
-          <p class="empty">No changed files detected.</p>
+          <ul class="file-list">
+              <li>calculator.py</li>
+              <li>tests/test_calculator.py</li>
+          </ul>
       </div>
     </section>
 
@@ -463,7 +466,7 @@
       </h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>`the changed file`: validate inputs at function boundaries — check for None, empty values, and unexpected types.</li>
+        <li>`calculator.py`: validate inputs at function boundaries — check for None, empty values, and unexpected types.</li>
         <li>Error paths may fail silently; confirm each failure branch returns a descriptive message or raises a typed exception.</li>
     </ul>
 
@@ -474,11 +477,10 @@
     <section class="section">
       <h2>
         Missing Tests
-        <span class="h2-count">2 item(s)</span>
+        <span class="h2-count">1 item(s)</span>
       </h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>No test files detected in the changed set. Consider adding tests alongside `the changed file`.</li>
         <li>Boundary-value coverage is missing: add tests for min/max inputs, empty collections, and off-by-one conditions.</li>
     </ul>
 
@@ -490,7 +492,7 @@
       <h2>Suggested Test Cases</h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>Happy-path: call the primary function in `the changed file` with valid inputs and assert the expected return value.</li>
+        <li>Happy-path: call the primary function in `calculator.py` with valid inputs and assert the expected return value.</li>
         <li>Invalid-input: pass None, an empty string, or an out-of-range value and assert a clear error is raised.</li>
         <li>Regression: add a test that pins any behavior this change is specifically intended to fix or improve.</li>
     </ul>
@@ -520,7 +522,7 @@
             <span class="badge badge-pass">&#10003; Passed</span>
           <span>
             <strong>python</strong>
-              &mdash; 1 passed in 0.01s
+              &mdash; 2 passed in 0.01s
           </span>
         </div>
 
@@ -548,11 +550,11 @@ platform win32 -- Python 3.11.9, pytest-9.0.2, pluggy-1.6.0
 rootdir: C:\桌面\projects\ai-code-review-qa\sample-projects\python-demo
 configfile: pytest.ini
 testpaths: tests
-collected 1 item
+collected 2 items
 
-tests\test_calculator.py .                                               [100%]
+tests\test_calculator.py ..                                              [100%]
 
-============================== 1 passed in 0.01s ==============================</pre>
+============================== 2 passed in 0.01s ==============================</pre>
           </details>
 
       </div>
