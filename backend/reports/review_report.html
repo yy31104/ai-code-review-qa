@@ -394,7 +394,7 @@
           <span class="engine-label">AI review engine</span>
           demo mode using structured AI review output
           &nbsp;&middot;&nbsp;
-          Generated <time>2026-05-11 21:56</time>
+          Generated <time>2026-05-11 22:28</time>
         </p>
       </div>
       <div style="padding-top:4px;">
@@ -452,7 +452,7 @@
       </h2>
       <div class="section-body">
           <ul class="file-list">
-              <li>README.md</li>
+              <li>.github/workflows/ai-review.yml</li>
           </ul>
       </div>
     </section>
@@ -465,7 +465,7 @@
       </h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>`README.md`: validate inputs at function boundaries — check for None, empty values, and unexpected types.</li>
+        <li>`ai-review.yml`: validate inputs at function boundaries - check for None, empty values, and unexpected types.</li>
         <li>Error paths may fail silently; confirm each failure branch returns a descriptive message or raises a typed exception.</li>
     </ul>
 
@@ -480,7 +480,7 @@
       </h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>No test files detected in the changed set. Consider adding tests alongside `README.md`.</li>
+        <li>No test files detected in the changed set. Consider adding tests alongside `ai-review.yml`.</li>
         <li>Boundary-value coverage is missing: add tests for min/max inputs, empty collections, and off-by-one conditions.</li>
     </ul>
 
@@ -492,7 +492,7 @@
       <h2>Suggested Test Cases</h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>Happy-path: call the primary function in `README.md` with valid inputs and assert the expected return value.</li>
+        <li>Happy-path: call the primary function in `ai-review.yml` with valid inputs and assert the expected return value.</li>
         <li>Invalid-input: pass None, an empty string, or an out-of-range value and assert a clear error is raised.</li>
         <li>Regression: add a test that pins any behavior this change is specifically intended to fix or improve.</li>
     </ul>
@@ -505,7 +505,7 @@
       <h2>Security &amp; Reliability Concerns</h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>Do not log secrets, tokens, or user-identifiable data — scrub sensitive fields before writing to any log sink.</li>
+        <li>Do not log secrets, tokens, or user-identifiable data - scrub sensitive fields before writing to any log sink.</li>
         <li>Wrap subprocess calls and external I/O in try/except to prevent unhandled exceptions from crashing the process.</li>
     </ul>
 
@@ -547,9 +547,10 @@
             <summary>View full test output</summary>
             <pre>============================= test session starts =============================
 platform win32 -- Python 3.11.9, pytest-9.0.2, pluggy-1.6.0
-rootdir: C:\桌面\projects\ai-code-review-qa\sample-projects\python-demo
+rootdir: C:\����\projects\ai-code-review-qa\sample-projects\python-demo
 configfile: pytest.ini
 testpaths: tests
+plugins: anyio-4.13.0
 collected 2 items
 
 tests\test_calculator.py ..                                              [100%]

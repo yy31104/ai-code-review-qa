@@ -1,4 +1,5 @@
 jinja2
+openai
 pydantic
 python-dotenv
 pytest

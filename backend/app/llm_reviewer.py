@@ -1,20 +1,107 @@
 from __future__ import annotations
 
+import os
+from textwrap import dedent
+
+from dotenv import load_dotenv
+
 from schemas import ReviewResult
 
 
 HUMAN_REVIEW_EXPLANATION = (
     "AI findings and automated test results should be reviewed by a developer before merging."
 )
+DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
+MAX_DIFF_CHARS = 20000
 
 
 def review_diff(diff: str, changed_files: list[str]) -> ReviewResult:
     """Return a structured code review.
 
-    Runs in demo mode using structured AI review output.
-    Replace mock_review_json with a real LLM call when integrating an API key.
+    Demo mode is the default. Set AI_REVIEW_MODE=openai plus OPENAI_API_KEY
+    to call the OpenAI Responses API.
     """
-    return ReviewResult(**mock_review_json(diff, changed_files))
+    load_dotenv()
+    mode = os.getenv("AI_REVIEW_MODE", "demo").strip().lower()
+
+    if mode in {"", "demo"}:
+        return _demo_review(diff, changed_files)
+
+    if mode != "openai":
+        return _demo_review(
+            diff,
+            changed_files,
+            warning=f"Unknown AI_REVIEW_MODE={mode!r}; falling back to demo mode.",
+        )
+
+    try:
+        return _review_with_openai(diff, changed_files)
+    except Exception as exc:
+        return _demo_review(
+            diff,
+            changed_files,
+            warning=f"OpenAI review failed ({exc}); falling back to demo mode.",
+        )
+
+
+def _demo_review(diff: str, changed_files: list[str], warning: str | None = None) -> ReviewResult:
+    payload = mock_review_json(diff, changed_files)
+    if warning:
+        payload["project_summary"] = f"{payload['project_summary']} Warning: {warning}"
+    return ReviewResult(**payload)
+
+
+def _review_with_openai(diff: str, changed_files: list[str]) -> ReviewResult:
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not set")
+
+    model = os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL).strip() or DEFAULT_OPENAI_MODEL
+
+    from openai import OpenAI
+
+    client = OpenAI(api_key=api_key)
+    response = client.responses.parse(
+        model=model,
+        input=[
+            {
+                "role": "system",
+                "content": dedent(
+                    """
+                    You are an AI code review assistant. Return only structured
+                    JSON matching the ReviewResult schema. Keep findings concise,
+                    practical, and grounded in the provided git diff.
+
+                    Set changed_files to the provided changed file list.
+                    Set human_review_decision to:
+                    AI findings and automated test results should be reviewed by a developer before merging.
+
+                    The automated_test_results field is a placeholder and will
+                    be replaced by the CLI after tests run.
+                    """
+                ).strip(),
+            },
+            {
+                "role": "user",
+                "content": dedent(
+                    f"""
+                    Changed files:
+                    {changed_files}
+
+                    Git diff:
+                    {_truncate_diff(diff)}
+                    """
+                ).strip(),
+            },
+        ],
+        text_format=ReviewResult,
+    )
+
+    parsed = response.output_parsed
+    if not isinstance(parsed, ReviewResult):
+        raise ValueError("OpenAI response did not parse into ReviewResult")
+
+    return parsed
 
 
 def mock_review_json(diff: str, changed_files: list[str]) -> dict:
@@ -34,12 +121,12 @@ def mock_review_json(diff: str, changed_files: list[str]) -> dict:
         summary = "No changed files were detected by git diff. Running in demo mode using structured AI review output."
 
     possible_bugs = [
-        f"`{primary}`: validate inputs at function boundaries — check for None, empty values, and unexpected types.",
+        f"`{primary}`: validate inputs at function boundaries - check for None, empty values, and unexpected types.",
         "Error paths may fail silently; confirm each failure branch returns a descriptive message or raises a typed exception.",
     ]
     if not diff and changed_files:
         possible_bugs.append(
-            "Files appear untracked in git — diff is empty, so line-level analysis is limited for this change set."
+            "Files appear untracked in git - diff is empty, so line-level analysis is limited for this change set."
         )
 
     missing_tests = []
@@ -63,7 +150,7 @@ def mock_review_json(diff: str, changed_files: list[str]) -> dict:
             "Regression: add a test that pins any behavior this change is specifically intended to fix or improve.",
         ],
         "security_reliability_concerns": [
-            "Do not log secrets, tokens, or user-identifiable data — scrub sensitive fields before writing to any log sink.",
+            "Do not log secrets, tokens, or user-identifiable data - scrub sensitive fields before writing to any log sink.",
             "Wrap subprocess calls and external I/O in try/except to prevent unhandled exceptions from crashing the process.",
         ],
         "automated_test_results": {
@@ -93,3 +180,9 @@ def _estimate_risk(diff: str, changed_files: list[str]) -> str:
     if len(changed_files) > 5:
         return "Medium"
     return "Low"
+
+
+def _truncate_diff(diff: str) -> str:
+    if len(diff) <= MAX_DIFF_CHARS:
+        return diff or "(No diff content available.)"
+    return f"{diff[:MAX_DIFF_CHARS]}\n\n[Diff truncated to {MAX_DIFF_CHARS} characters.]"

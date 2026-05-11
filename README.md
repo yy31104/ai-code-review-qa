@@ -76,6 +76,28 @@ python -m pip install --upgrade pip
 python -m pip install -r backend/requirements.txt
 ```
 
+## Review Modes
+
+Demo mode is the default and does not require an API key:
+
+```bash
+AI_REVIEW_MODE=demo
+```
+
+To configure optional OpenAI review mode, copy the example env file and add your own API key:
+
+```bash
+cp .env.example .env
+```
+
+```text
+AI_REVIEW_MODE=openai
+OPENAI_API_KEY=your_api_key_here
+OPENAI_MODEL=gpt-4.1-mini
+```
+
+When `AI_REVIEW_MODE=openai`, the CLI sends the git diff and changed files to the OpenAI Responses API and validates the structured JSON response against the existing Pydantic `ReviewResult` schema. If the API key is missing, the API call fails, or the model response cannot be validated, the tool falls back to demo mode and includes a warning in the report summary.
+
 ## CLI Usage
 
 ### Local Working-Tree Review
