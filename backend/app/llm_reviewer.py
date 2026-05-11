@@ -3,6 +3,11 @@ from __future__ import annotations
 from schemas import ReviewResult
 
 
+HUMAN_REVIEW_EXPLANATION = (
+    "AI findings and automated test results should be reviewed by a developer before merging."
+)
+
+
 def review_diff(diff: str, changed_files: list[str]) -> ReviewResult:
     """Return a structured code review.
 
@@ -75,7 +80,7 @@ def mock_review_json(diff: str, changed_files: list[str]) -> dict:
             "Ensure all automated tests pass in CI before merging.",
             "Expand test coverage around the highest-risk code paths identified in this report.",
         ],
-        "human_review_decision": _decision_for_risk(risk_level),
+        "human_review_decision": HUMAN_REVIEW_EXPLANATION,
     }
 
 
@@ -88,11 +93,3 @@ def _estimate_risk(diff: str, changed_files: list[str]) -> str:
     if len(changed_files) > 5:
         return "Medium"
     return "Low"
-
-
-def _decision_for_risk(risk_level: str) -> str:
-    if risk_level == "High":
-        return "High-risk changes detected. A senior engineer must review this diff before it can be merged."
-    if risk_level == "Medium":
-        return "Medium-risk changes. Approve only after confirming that test coverage adequately exercises the modified paths."
-    return "Low-risk changes. Safe to merge once all automated checks pass."

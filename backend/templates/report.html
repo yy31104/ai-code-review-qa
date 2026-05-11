@@ -409,13 +409,7 @@
         </p>
       </div>
       <div style="padding-top:4px;">
-        {% if review.risk_level | lower == "high" %}
-          <span class="badge badge-needs-review" style="font-size:13px;padding:4px 12px;">&#9888; Needs Human Review</span>
-        {% elif review.risk_level | lower == "medium" %}
-          <span class="badge badge-conditional" style="font-size:13px;padding:4px 12px;">&#9888; Conditional Approval</span>
-        {% else %}
-          <span class="badge badge-lgtm" style="font-size:13px;padding:4px 12px;">&#10003; LGTM</span>
-        {% endif %}
+        <span class="badge badge-needs-review" style="font-size:13px;padding:4px 12px;">&#9888; Decision: Needs Human Review</span>
       </div>
     </div>
 
@@ -452,13 +446,7 @@
       <div class="stat-card">
         <div class="stat-label">Review Decision</div>
         <div class="stat-value-sm" style="margin-top:6px;">
-          {% if review.risk_level | lower == "high" %}
-            <span class="badge badge-needs-review">Needs Human Review</span>
-          {% elif review.risk_level | lower == "medium" %}
-            <span class="badge badge-conditional">Conditional Approval</span>
-          {% else %}
-            <span class="badge badge-lgtm">LGTM</span>
-          {% endif %}
+          <span class="badge badge-needs-review">Decision: Needs Human Review</span>
         </div>
       </div>
     </div>
@@ -599,24 +587,12 @@
       <h2>Review Decision</h2>
       <div class="section-body">
         <div class="decision-block">
-          {% if review.risk_level | lower == "high" %}
           <div class="decision-icon decision-icon-high">!</div>
-          {% elif review.risk_level | lower == "medium" %}
-          <div class="decision-icon decision-icon-medium">~</div>
-          {% else %}
-          <div class="decision-icon decision-icon-low">&#10003;</div>
-          {% endif %}
           <div class="decision-content">
             <h3>
-              {% if review.risk_level | lower == "high" %}
-                <span class="badge badge-needs-review" style="font-size:13px;padding:3px 12px;">Needs Human Review</span>
-              {% elif review.risk_level | lower == "medium" %}
-                <span class="badge badge-conditional" style="font-size:13px;padding:3px 12px;">Conditional Approval</span>
-              {% else %}
-                <span class="badge badge-lgtm" style="font-size:13px;padding:3px 12px;">LGTM</span>
-              {% endif %}
+              <span class="badge badge-needs-review" style="font-size:13px;padding:3px 12px;">Decision: Needs Human Review</span>
             </h3>
-            <p>{{ review.human_review_decision }}</p>
+            <p><strong>Explanation:</strong> {{ review.human_review_decision }}</p>
           </div>
         </div>
       </div>
