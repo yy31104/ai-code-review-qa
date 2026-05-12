@@ -396,7 +396,7 @@
               &nbsp;&middot;&nbsp;gpt-5.4-mini
             &nbsp;&middot;&nbsp;OpenAI-powered structured review output
           &nbsp;&middot;&nbsp;
-          Generated <time>2026-05-12 09:55</time>
+          Generated <time>2026-05-12 09:58</time>
         </p>
       </div>
       <div style="padding-top:4px;">
@@ -408,12 +408,12 @@
     <div class="summary-grid">
       <div class="stat-card">
         <div class="stat-label">Changed Files</div>
-        <div class="stat-value">7</div>
+        <div class="stat-value">5</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Risk Level</div>
         <div class="stat-value" style="font-size:16px;margin-top:4px;">
-          <span class="badge badge-medium">Medium</span>
+          <span class="badge badge-medium">medium</span>
         </div>
       </div>
       <div class="stat-card">
@@ -442,7 +442,7 @@
     <section class="section">
       <h2>Project Summary</h2>
       <div class="section-body">
-        <p>Added optional OpenAI-backed review mode with demo fallback, plus encoding hardening for git/test subprocess output and updated docs/example env setup.</p>
+        <p>The change adds review metadata to the schema and renderers, and updates demo/OpenAI review paths to populate it. It also changes the default example model to gpt-5.4-mini and updates the HTML report/template to display engine details conditionally.</p>
       </div>
     </section>
 
@@ -450,17 +450,15 @@
     <section class="section">
       <h2>
         Changed Files
-        <span class="h2-count">7 file(s)</span>
+        <span class="h2-count">5 file(s)</span>
       </h2>
       <div class="section-body">
           <ul class="file-list">
               <li>.env.example</li>
-              <li>README.md</li>
-              <li>backend/app/git_diff_reader.py</li>
               <li>backend/app/llm_reviewer.py</li>
-              <li>backend/app/test_runner.py</li>
+              <li>backend/app/schemas.py</li>
               <li>backend/reports/review_report.html</li>
-              <li>backend/requirements.txt</li>
+              <li>backend/templates/report.html</li>
           </ul>
       </div>
     </section>
@@ -473,9 +471,9 @@
       </h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>`clients.responses.parse(...)` assumes the OpenAI SDK version exposes `responses.parse` and `output_parsed`; older/newer SDKs may raise at runtime and always fall back to demo mode.</li>
-        <li>The OpenAI request passes the diff inline without chunking beyond 20k chars; larger changes may be truncated and reduce review quality.</li>
-        <li>`load_dotenv()` is called inside `review_diff()` on every invocation, which may unexpectedly override environment handling in some runtime contexts.</li>
+        <li>`ReviewResult` now requires `review_mode`/`review_model` fields to exist in parsed OpenAI/demo payloads; any older mock or API response lacking them will fail validation until all producers are updated.</li>
+        <li>The template only renders OpenAI details when `review.review_mode == &#34;openai&#34;`; if other modes are introduced later, the report may show misleading or incomplete engine info.</li>
+        <li>The generated report HTML appears to be manually edited and may drift from the template/source data, causing stale or inconsistent report content.</li>
     </ul>
 
       </div>
@@ -489,9 +487,9 @@
       </h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>No tests cover the new OpenAI review path, including fallback behavior when the API key is missing or the response schema validation fails.</li>
-        <li>No tests verify that `_truncate_diff()` preserves valid JSON-safe input and truncates long diffs as expected.</li>
-        <li>No tests cover the new UTF-8 `errors=&#39;replace&#39;` subprocess settings for non-ASCII repository paths/output.</li>
+        <li>No tests verify that demo mode still returns a valid `ReviewResult` after adding the new schema fields.</li>
+        <li>No tests verify the OpenAI path sets `review_mode=&#34;openai&#34;` and `review_model=model` correctly.</li>
+        <li>No tests verify the report template renders the engine/model subtitle correctly for both demo and OpenAI modes.</li>
     </ul>
 
       </div>
@@ -502,11 +500,9 @@
       <h2>Suggested Test Cases</h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>Set `AI_REVIEW_MODE=openai` with a valid stubbed OpenAI client and assert a `ReviewResult` is returned from parsed structured output.</li>
-        <li>Set `AI_REVIEW_MODE=openai` without `OPENAI_API_KEY` and assert the function falls back to demo mode with a warning appended to `project_summary`.</li>
-        <li>Simulate an OpenAI API exception and confirm demo fallback occurs instead of crashing.</li>
-        <li>Provide a diff longer than 20,000 characters and verify `_truncate_diff()` appends the truncation notice.</li>
-        <li>Run git/test subprocesses against paths or output containing non-UTF-8 bytes and verify the reader/test runner still return results instead of failing.</li>
+        <li>Call `_demo_review()` and assert the returned schema includes `review_mode=&#34;demo&#34;` and `review_model is None`.</li>
+        <li>Mock a successful OpenAI parse response and assert `_review_with_openai()` stamps `review_mode=&#34;openai&#34;` and the configured model name.</li>
+        <li>Render `backend/templates/report.html` with demo and OpenAI review objects and assert the subtitle content changes as expected.</li>
     </ul>
 
       </div>
@@ -517,9 +513,9 @@
       <h2>Security &amp; Reliability Concerns</h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>Sending full diffs to a third-party API may expose sensitive code or secrets if users enable OpenAI mode without reviewing repository contents.</li>
-        <li>`except Exception` in the OpenAI path swallows all errors and can hide integration problems behind demo-mode fallback, making failures less visible.</li>
-        <li>Adding `openai` without a pinned version may introduce breakage from SDK API changes.</li>
+        <li>If `review_mode`/`review_model` are not populated consistently across all review producers, parsing failures could push users into fallback or break report generation.</li>
+        <li>The report now exposes the model name in generated output, which is fine operationally but should be considered if reports are shared externally.</li>
+        <li>Changing the default example model in `.env.example` may cause users to select an unavailable or unsupported model if their OpenAI account does not have access to it.</li>
     </ul>
 
       </div>
@@ -558,16 +554,16 @@
 
           <details>
             <summary>View full test output</summary>
-            <pre>============================= test session starts =============================
-platform win32 -- Python 3.11.9, pytest-9.0.2, pluggy-1.6.0
-rootdir: C:\����\projects\ai-code-review-qa\sample-projects\python-demo
-configfile: pytest.ini
-testpaths: tests
-plugins: anyio-4.13.0
-collected 2 items
-
-tests\test_calculator.py ..                                              [100%]
-
+            <pre>============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.0.2, pluggy-1.6.0
+rootdir: &lt;repo&gt;/sample-projects/python-demo
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.13.0
+collected 2 items
+
+tests/test_calculator.py ..                                              [100%]
+
 ============================== 2 passed in 0.01s ==============================</pre>
           </details>
 
@@ -579,11 +575,10 @@ tests\test_calculator.py ..                                              [100%]
       <h2>Recommended Actions</h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>Pin the OpenAI SDK version in `backend/requirements.txt` and add a small compatibility test or wrapper around the response parsing call.</li>
-        <li>Add unit tests for OpenAI success, missing key fallback, API failure fallback, and diff truncation.</li>
-        <li>Consider logging or surfacing OpenAI fallback reasons more explicitly so operational issues are easier to diagnose.</li>
-        <li>Review whether `load_dotenv()` should be called once at startup instead of inside `review_diff()`.</li>
-        <li>Verify the generated HTML report is updated from source data rather than hand-edited to avoid stale/mismatched content.</li>
+        <li>Verify every code path that constructs `ReviewResult` now sets `review_mode` and `review_model` appropriately.</li>
+        <li>Add regression tests for demo fallback, OpenAI success, and template rendering.</li>
+        <li>Confirm the new default model string in `.env.example` is supported by your deployment environment.</li>
+        <li>Avoid relying on the hand-edited generated report as a source of truth; regenerate it from templates/data instead.</li>
     </ul>
 
       </div>

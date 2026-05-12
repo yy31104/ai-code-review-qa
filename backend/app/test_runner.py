@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import locale
 import subprocess
 import sys
 from pathlib import Path
@@ -33,10 +34,8 @@ def run_tests(repo_path: str | Path) -> TestResult:
         result = subprocess.run(
             command,
             cwd=test_cwd,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             timeout=120,
         )
     except FileNotFoundError as exc:
@@ -48,7 +47,10 @@ def run_tests(repo_path: str | Path) -> TestResult:
             error=f"Test command was not found: {exc}",
         )
     except subprocess.TimeoutExpired as exc:
-        output = (exc.stdout or "") + (exc.stderr or "")
+        output = _sanitize_test_output(
+            _decode_output(exc.stdout) + _decode_output(exc.stderr),
+            _find_repo_root(repo),
+        )
         return TestResult(
             project_type=project_type,
             command=display_command,
@@ -58,7 +60,10 @@ def run_tests(repo_path: str | Path) -> TestResult:
             error="Test command timed out after 120 seconds.",
         )
 
-    combined_output = "\n".join(part for part in [result.stdout, result.stderr] if part).strip()
+    combined_output = "\n".join(
+        part for part in [_decode_output(result.stdout), _decode_output(result.stderr)] if part
+    ).strip()
+    combined_output = _sanitize_test_output(combined_output, _find_repo_root(repo))
     return TestResult(
         project_type=project_type,
         command=display_command,
@@ -99,6 +104,44 @@ def _find_python_project(repo: Path) -> Path | None:
             return path.parent
 
     return None
+
+
+def _decode_output(output: bytes | str | None) -> str:
+    if output is None:
+        return ""
+    if isinstance(output, str):
+        return output
+
+    encodings = ["utf-8", locale.getpreferredencoding(False), "cp936", "gbk"]
+    for encoding in dict.fromkeys(encodings):
+        try:
+            return output.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+
+    return output.decode("utf-8", errors="replace")
+
+
+def _find_repo_root(path: Path) -> Path:
+    current = path.resolve()
+    candidates = [current, *current.parents]
+    for candidate in candidates:
+        if (candidate / ".git").exists():
+            return candidate
+    return current
+
+
+def _sanitize_test_output(output: str, repo_root: Path) -> str:
+    if not output:
+        return output
+
+    root = str(repo_root.resolve())
+    root_posix = repo_root.resolve().as_posix()
+    sanitized = output
+    for variant in sorted({root, root_posix}, key=len, reverse=True):
+        sanitized = sanitized.replace(variant, "<repo>")
+
+    return sanitized.replace("\\", "/")
 
 
 def _extract_summary(output: str, project_type: str) -> str:
