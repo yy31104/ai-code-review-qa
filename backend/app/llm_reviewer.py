@@ -46,6 +46,8 @@ def review_diff(diff: str, changed_files: list[str]) -> ReviewResult:
 
 def _demo_review(diff: str, changed_files: list[str], warning: str | None = None) -> ReviewResult:
     payload = mock_review_json(diff, changed_files)
+    payload["review_mode"] = "demo"
+    payload["review_model"] = None
     if warning:
         payload["project_summary"] = f"{payload['project_summary']} Warning: {warning}"
     return ReviewResult(**payload)
@@ -101,6 +103,8 @@ def _review_with_openai(diff: str, changed_files: list[str]) -> ReviewResult:
     if not isinstance(parsed, ReviewResult):
         raise ValueError("OpenAI response did not parse into ReviewResult")
 
+    parsed.review_mode = "openai"
+    parsed.review_model = model
     return parsed
 
 

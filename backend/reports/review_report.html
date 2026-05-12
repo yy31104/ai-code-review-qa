@@ -392,9 +392,11 @@
         <h1>AI Code Review Report</h1>
         <p class="subtitle">
           <span class="engine-label">AI review engine</span>
-          demo mode using structured AI review output
+            &nbsp;&middot;&nbsp;OpenAI
+              &nbsp;&middot;&nbsp;gpt-5.4-mini
+            &nbsp;&middot;&nbsp;OpenAI-powered structured review output
           &nbsp;&middot;&nbsp;
-          Generated <time>2026-05-11 22:28</time>
+          Generated <time>2026-05-12 09:55</time>
         </p>
       </div>
       <div style="padding-top:4px;">
@@ -406,12 +408,12 @@
     <div class="summary-grid">
       <div class="stat-card">
         <div class="stat-label">Changed Files</div>
-        <div class="stat-value">1</div>
+        <div class="stat-value">7</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Risk Level</div>
         <div class="stat-value" style="font-size:16px;margin-top:4px;">
-          <span class="badge badge-low">Low</span>
+          <span class="badge badge-medium">Medium</span>
         </div>
       </div>
       <div class="stat-card">
@@ -422,11 +424,11 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">Possible Bugs</div>
-        <div class="stat-value">2</div>
+        <div class="stat-value">3</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Missing Tests</div>
-        <div class="stat-value">2</div>
+        <div class="stat-value">3</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Review Decision</div>
@@ -440,7 +442,7 @@
     <section class="section">
       <h2>Project Summary</h2>
       <div class="section-body">
-        <p>Reviewed 1 changed file(s) via the AI review engine. Running in demo mode using structured AI review output.</p>
+        <p>Added optional OpenAI-backed review mode with demo fallback, plus encoding hardening for git/test subprocess output and updated docs/example env setup.</p>
       </div>
     </section>
 
@@ -448,11 +450,17 @@
     <section class="section">
       <h2>
         Changed Files
-        <span class="h2-count">1 file(s)</span>
+        <span class="h2-count">7 file(s)</span>
       </h2>
       <div class="section-body">
           <ul class="file-list">
-              <li>.github/workflows/ai-review.yml</li>
+              <li>.env.example</li>
+              <li>README.md</li>
+              <li>backend/app/git_diff_reader.py</li>
+              <li>backend/app/llm_reviewer.py</li>
+              <li>backend/app/test_runner.py</li>
+              <li>backend/reports/review_report.html</li>
+              <li>backend/requirements.txt</li>
           </ul>
       </div>
     </section>
@@ -461,12 +469,13 @@
     <section class="section">
       <h2>
         Possible Bugs
-        <span class="h2-count">2 item(s)</span>
+        <span class="h2-count">3 item(s)</span>
       </h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>`ai-review.yml`: validate inputs at function boundaries - check for None, empty values, and unexpected types.</li>
-        <li>Error paths may fail silently; confirm each failure branch returns a descriptive message or raises a typed exception.</li>
+        <li>`clients.responses.parse(...)` assumes the OpenAI SDK version exposes `responses.parse` and `output_parsed`; older/newer SDKs may raise at runtime and always fall back to demo mode.</li>
+        <li>The OpenAI request passes the diff inline without chunking beyond 20k chars; larger changes may be truncated and reduce review quality.</li>
+        <li>`load_dotenv()` is called inside `review_diff()` on every invocation, which may unexpectedly override environment handling in some runtime contexts.</li>
     </ul>
 
       </div>
@@ -476,12 +485,13 @@
     <section class="section">
       <h2>
         Missing Tests
-        <span class="h2-count">2 item(s)</span>
+        <span class="h2-count">3 item(s)</span>
       </h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>No test files detected in the changed set. Consider adding tests alongside `ai-review.yml`.</li>
-        <li>Boundary-value coverage is missing: add tests for min/max inputs, empty collections, and off-by-one conditions.</li>
+        <li>No tests cover the new OpenAI review path, including fallback behavior when the API key is missing or the response schema validation fails.</li>
+        <li>No tests verify that `_truncate_diff()` preserves valid JSON-safe input and truncates long diffs as expected.</li>
+        <li>No tests cover the new UTF-8 `errors=&#39;replace&#39;` subprocess settings for non-ASCII repository paths/output.</li>
     </ul>
 
       </div>
@@ -492,9 +502,11 @@
       <h2>Suggested Test Cases</h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>Happy-path: call the primary function in `ai-review.yml` with valid inputs and assert the expected return value.</li>
-        <li>Invalid-input: pass None, an empty string, or an out-of-range value and assert a clear error is raised.</li>
-        <li>Regression: add a test that pins any behavior this change is specifically intended to fix or improve.</li>
+        <li>Set `AI_REVIEW_MODE=openai` with a valid stubbed OpenAI client and assert a `ReviewResult` is returned from parsed structured output.</li>
+        <li>Set `AI_REVIEW_MODE=openai` without `OPENAI_API_KEY` and assert the function falls back to demo mode with a warning appended to `project_summary`.</li>
+        <li>Simulate an OpenAI API exception and confirm demo fallback occurs instead of crashing.</li>
+        <li>Provide a diff longer than 20,000 characters and verify `_truncate_diff()` appends the truncation notice.</li>
+        <li>Run git/test subprocesses against paths or output containing non-UTF-8 bytes and verify the reader/test runner still return results instead of failing.</li>
     </ul>
 
       </div>
@@ -505,8 +517,9 @@
       <h2>Security &amp; Reliability Concerns</h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>Do not log secrets, tokens, or user-identifiable data - scrub sensitive fields before writing to any log sink.</li>
-        <li>Wrap subprocess calls and external I/O in try/except to prevent unhandled exceptions from crashing the process.</li>
+        <li>Sending full diffs to a third-party API may expose sensitive code or secrets if users enable OpenAI mode without reviewing repository contents.</li>
+        <li>`except Exception` in the OpenAI path swallows all errors and can hide integration problems behind demo-mode fallback, making failures less visible.</li>
+        <li>Adding `openai` without a pinned version may introduce breakage from SDK API changes.</li>
     </ul>
 
       </div>
@@ -566,9 +579,11 @@ tests\test_calculator.py ..                                              [100%]
       <h2>Recommended Actions</h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>Address the possible bugs listed above before requesting a final review.</li>
-        <li>Ensure all automated tests pass in CI before merging.</li>
-        <li>Expand test coverage around the highest-risk code paths identified in this report.</li>
+        <li>Pin the OpenAI SDK version in `backend/requirements.txt` and add a small compatibility test or wrapper around the response parsing call.</li>
+        <li>Add unit tests for OpenAI success, missing key fallback, API failure fallback, and diff truncation.</li>
+        <li>Consider logging or surfacing OpenAI fallback reasons more explicitly so operational issues are easier to diagnose.</li>
+        <li>Review whether `load_dotenv()` should be called once at startup instead of inside `review_diff()`.</li>
+        <li>Verify the generated HTML report is updated from source data rather than hand-edited to avoid stale/mismatched content.</li>
     </ul>
 
       </div>

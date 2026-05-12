@@ -16,6 +16,8 @@ class TestResult(BaseModel):
 
 
 class ReviewResult(BaseModel):
+    review_mode: str = "demo"
+    review_model: Optional[str] = None
     project_summary: str
     changed_files: List[str] = Field(default_factory=list)
     risk_level: str

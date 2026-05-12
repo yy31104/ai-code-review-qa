@@ -403,7 +403,15 @@
         <h1>AI Code Review Report</h1>
         <p class="subtitle">
           <span class="engine-label">AI review engine</span>
-          demo mode using structured AI review output
+          {% if review.review_mode == "openai" %}
+            &nbsp;&middot;&nbsp;OpenAI
+            {% if review.review_model %}
+              &nbsp;&middot;&nbsp;{{ review.review_model }}
+            {% endif %}
+            &nbsp;&middot;&nbsp;OpenAI-powered structured review output
+          {% else %}
+            demo mode using structured AI review output
+          {% endif %}
           &nbsp;&middot;&nbsp;
           Generated <time>{{ generated_at }}</time>
         </p>
