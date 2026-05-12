@@ -1,23 +1,23 @@
 # AI Code Review & QA Automation Platform
 
-A portfolio-ready MVP for automated code review and QA reporting. The tool reads Git changes, runs automated tests, generates structured AI-style review feedback, and outputs a clean HTML report.
+A portfolio-ready MVP for automated code review and QA reporting. The tool reads Git changes, runs automated tests, generates structured AI review feedback, validates the result with Pydantic, and outputs a clean HTML report.
 
-This project is positioned for Junior AI Engineer and AI Automation Engineer roles. It demonstrates practical automation, test orchestration, report generation, CI integration, and an architecture that can later connect to a real LLM API.
+This project is positioned for Junior AI Engineer and AI Automation Engineer roles. It supports demo mode by default and optional OpenAI-powered structured review mode when an API key is configured. The current portfolio version demonstrates OpenAI-powered review output with Pydantic validation and fallback to demo mode.
 
 ## Why This Is Useful
 
-Modern teams need fast feedback before code reaches human reviewers. This tool helps by combining diff analysis, automated test execution, and structured review notes into one shareable report. The current version uses demo mode with structured AI review output, while the architecture is designed to support real LLM API integration later.
+Modern teams need fast feedback before code reaches human reviewers. This tool helps by combining diff analysis, automated test execution, structured AI review notes, and a shareable HTML report. It can run safely in demo mode without credentials, or use OpenAI mode for real structured review output while keeping a demo fallback if the API call or validation fails.
 
 ## Key Features
 
-- Python CLI for local review automation
-- Working-tree and commit-range Git diff detection
+- Optional OpenAI-powered structured code review
+- Demo fallback mode
+- Structured JSON review output validated with Pydantic
+- Git working-tree and commit-range diff support
 - Automatic test command detection for Python, Node.js, and .NET projects
-- Pytest execution for the included sample project
-- Demo-mode structured AI review output
-- Pydantic schemas for review and test results
+- Automated test execution
 - GitHub-style HTML report generated with Jinja2
-- GitHub Actions workflow that generates and uploads the report artifact
+- GitHub Actions artifact upload
 
 ## Sample Report Screenshot
 
@@ -42,10 +42,13 @@ Test runner detects project type
         +--> dotnet test
         |
         v
-Demo AI reviewer creates structured review JSON
+Review engine creates structured JSON
+        |
+        +--> demo mode
+        +--> OpenAI mode
         |
         v
-Pydantic schemas validate results
+Pydantic schemas validate review and test results
         |
         v
 Jinja2 report generator
@@ -93,10 +96,10 @@ cp .env.example .env
 ```text
 AI_REVIEW_MODE=openai
 OPENAI_API_KEY=your_api_key_here
-OPENAI_MODEL=gpt-4.1-mini
+OPENAI_MODEL=gpt-5.4-mini
 ```
 
-When `AI_REVIEW_MODE=openai`, the CLI sends the git diff and changed files to the OpenAI Responses API and validates the structured JSON response against the existing Pydantic `ReviewResult` schema. If the API key is missing, the API call fails, or the model response cannot be validated, the tool falls back to demo mode and includes a warning in the report summary.
+When `AI_REVIEW_MODE=openai`, the CLI sends the git diff and changed files to the OpenAI Responses API and validates the structured JSON response against the existing Pydantic `ReviewResult` schema. If the API key is missing, the API call fails, or the model response cannot be validated, the tool falls back to demo mode and includes a warning in the report summary. API keys are loaded from `.env` and should never be committed.
 
 ## CLI Usage
 
@@ -124,7 +127,7 @@ Both modes will:
 
 - inspect Git changes for the target project
 - detect and run the appropriate test command
-- create demo-mode structured AI review output
+- create structured review output using demo or OpenAI mode
 - generate an HTML review report
 
 ## GitHub Actions CI Usage
@@ -168,12 +171,13 @@ Complete MVP:
 - sample Python project is included
 - automated tests run successfully
 - HTML report generation works locally and in CI
-- current AI review is demo mode with structured output
+- current portfolio report demonstrates OpenAI-powered structured review output
+- demo fallback remains available for local and CI-safe execution
 
 ## Future Improvements
 
-- Real LLM API integration
 - GitHub PR diff support
+- richer prompt evaluation and reviewer tuning
 - React dashboard
 - ASP.NET Core API
 - Docker packaging
