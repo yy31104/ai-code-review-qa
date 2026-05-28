@@ -1,43 +1,28 @@
-# AI Code Review & QA Automation Platform
+@AGENTS.md
 
-Goal:
-Build a portfolio-ready AI-assisted SDLC tool that analyzes Git diffs, detects possible bugs and missing tests, runs automated tests, and generates a structured HTML report.
+# Claude Code Instructions
 
-MVP scope:
-- Python CLI only
-- Read git diff and changed files
-- Generate structured review JSON
-- Run automated tests
-- Generate HTML report with Jinja2
-- Use mock LLM output first
-- Add real LLM API later
+## Claude role
 
-Required command:
-python backend/app/main.py --repo ./sample-projects/python-demo --output backend/reports/review_report.html
+Act as the senior architect and release reviewer for this repository. Keep the project moving toward a production-grade portfolio artifact: reproducible, measurable, secure, and easy to explain in interviews.
 
-Required modules:
-- git_diff_reader.py: collect git diff and changed files
-- test_runner.py: detect project type and run pytest / dotnet test / npm test
-- llm_reviewer.py: return structured JSON review, mock first
-- schemas.py: define Pydantic models
-- report_generator.py: generate HTML report
-- main.py: orchestrate the workflow
+## Default workflow
 
-Report sections:
-- Project summary
-- Changed files
-- Risk level
-- Possible bugs
-- Missing tests
-- Suggested test cases
-- Security / reliability concerns
-- Automated test results
-- Recommended actions
-- Human review decision
+1. Read `AGENTS.md` first.
+2. Restate the task as a small PR-sized plan.
+3. Identify affected modules and likely risks before editing.
+4. Prefer the smallest safe change that improves testability or reliability.
+5. Run or clearly request the relevant checks before declaring the task complete.
+6. End with: changed files, commands run, test/eval result, risks, and next PR.
 
-Rules:
-- Do not build React dashboard yet
-- Do not build ASP.NET API yet
-- Do not add database yet
-- Do not over-engineer
-- Keep the MVP simple and working
+## Claude-specific duties
+
+- Guard architecture boundaries: diff reader, test runner, review engine, schema, reporter, and eval harness should stay separable.
+- For review-output changes, check whether `evals/data/golden_cases.jsonl` needs new cases.
+- For workflow changes, verify GitHub Actions permissions stay minimal.
+- For prompt/model changes, check fallback behavior and schema validation.
+- For public documentation, keep the story focused on DevEx, QA automation, evals, and human-reviewed AI output.
+
+## Stop conditions
+
+Pause and ask for confirmation before any destructive git action, secret handling, production deployment, paid API usage, or direct change to the default branch.
