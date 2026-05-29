@@ -17,6 +17,8 @@ Modern teams need fast feedback before code reaches human reviewers. This tool h
 - Automatic test command detection for Python, Node.js, and .NET projects
 - Automated test execution
 - GitHub-style HTML report generated with Jinja2
+- Local golden-case eval harness
+- Markdown/HTML eval summary artifacts
 - GitHub Actions artifact upload
 
 ## Sample Report Screenshot
@@ -50,11 +52,8 @@ Review engine creates structured JSON
         v
 Pydantic schemas validate review and test results
         |
-        v
-Jinja2 report generator
-        |
-        v
-HTML review report
+        +--> Jinja2 HTML review report
+        +--> eval harness regression report
 ```
 
 ## Tech Stack
@@ -130,6 +129,43 @@ Both modes will:
 - create structured review output using demo or OpenAI mode
 - generate an HTML review report
 
+## Eval Harness
+
+The local eval harness provides a deterministic regression baseline for the demo review engine. It is designed to run without API keys and to catch behavior drift before the project expands into PR comments, API service mode, or richer model comparisons.
+
+Run the seed eval dataset:
+
+```bash
+python evals/run_local.py --out reports/evals/results.json
+```
+
+Render Markdown and HTML summaries:
+
+```bash
+python evals/render_report.py \
+  --in reports/evals/results.json \
+  --md reports/evals/summary.md \
+  --html reports/evals/summary.html
+```
+
+The seed dataset currently covers:
+
+- authentication/token changes without tests
+- test-only changes that should stay low risk
+- large cross-file changes that should raise risk level
+- subprocess/security-sensitive changes
+- empty-diff/untracked-file cases with limited line-level analysis
+
+## Local Tests
+
+Run the Python test suite:
+
+```bash
+python -m pytest -q
+```
+
+The tests cover the eval dataset loader, local eval CLI, and report rendering command.
+
 ## GitHub Actions CI Usage
 
 The workflow in `.github/workflows/ai-review.yml` runs on:
@@ -140,9 +176,18 @@ The workflow in `.github/workflows/ai-review.yml` runs on:
 
 In CI, GitHub Actions checks out the repository, installs backend dependencies, runs the CLI with `--base HEAD~1 --head HEAD`, and uploads the generated report as an artifact named `review-report`.
 
+The workflow in `.github/workflows/evals.yml` runs the eval harness on:
+
+- pull request to `main`
+- push to `main`
+- manual `workflow_dispatch`
+- nightly schedule
+
+It runs pytest, runs the golden-case evals, renders Markdown/HTML eval summaries, uploads `eval-report`, and publishes the Markdown summary to the GitHub job summary.
+
 ## HTML Report Artifact
 
-The generated report is saved to:
+The generated review report is saved to:
 
 ```text
 backend/reports/review_report.html
@@ -173,6 +218,8 @@ Complete MVP:
 - HTML report generation works locally and in CI
 - current portfolio report demonstrates OpenAI-powered structured review output
 - demo fallback remains available for local and CI-safe execution
+- first deterministic eval harness baseline is implemented
+- GitHub Actions eval workflow is available for PR/manual/nightly runs
 
 ## Future Improvements
 
