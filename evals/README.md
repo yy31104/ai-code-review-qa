@@ -4,9 +4,10 @@ This directory contains the first production-grade regression harness for `ai-co
 
 ## What it measures
 
-The current 18-case dataset checks whether the demo review engine keeps stable behavior for:
+The current 23-case dataset checks whether the demo review engine keeps stable behavior for:
 
 - risk-level classification for high-risk terms such as auth, token, subprocess, and SQL;
+- detection of risk terms inside camelCase/PascalCase identifiers such as authToken, deleteUser, runSql, and PaymentProcessor;
 - false-positive guards for nearby non-risk terms such as tokenizer, author, deleted-at, and docs/test-only payment wording;
 - missing-test detection when production files change without nearby test files;
 - exact or minimum useful finding counts for possible bugs, missing tests, suggested tests, and reliability concerns;
@@ -68,4 +69,4 @@ Add new cases when review behavior changes, especially for:
 - new language or framework support;
 - GitHub PR adapter behavior.
 
-Keep the dataset hand-reviewed and deterministic. The next milestone is to grow from this 18-case baseline to 30-50 golden cases with explicit false-positive and false-negative examples.
+Keep the dataset hand-reviewed and deterministic. The next milestone is to grow from this 23-case baseline to 30-50 golden cases with explicit false-positive and false-negative examples.
