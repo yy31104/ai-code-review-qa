@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from textwrap import dedent
 
 from dotenv import load_dotenv
@@ -13,6 +14,21 @@ HUMAN_REVIEW_EXPLANATION = (
 )
 DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
 MAX_DIFF_CHARS = 20000
+RISKY_TERMS = {
+    "auth",
+    "authentication",
+    "authorize",
+    "authorization",
+    "password",
+    "passwords",
+    "token",
+    "tokens",
+    "payment",
+    "payments",
+    "delete",
+    "subprocess",
+    "sql",
+}
 
 
 def review_diff(diff: str, changed_files: list[str]) -> ReviewResult:
@@ -177,13 +193,41 @@ def mock_review_json(diff: str, changed_files: list[str]) -> dict:
 
 def _estimate_risk(diff: str, changed_files: list[str]) -> str:
     lowered = f"{diff}\n{' '.join(changed_files)}".lower()
-    risky_terms = ["auth", "password", "token", "payment", "delete", "subprocess", "sql"]
+    # Whole-token matching reduces substring false positives like "author" or "tokenizer".
+    # This deterministic demo heuristic may miss camelCase/PascalCase identifiers such
+    # as authToken or deleteUser; camelCase-aware matching is a follow-up.
+    tokens = set(re.findall(r"[a-z0-9]+", lowered))
 
-    if any(term in lowered for term in risky_terms):
+    if tokens.intersection(RISKY_TERMS) and not _all_changed_files_are_non_runtime(changed_files):
         return "High"
     if len(changed_files) > 5:
         return "Medium"
     return "Low"
+
+
+def _all_changed_files_are_non_runtime(changed_files: list[str]) -> bool:
+    return bool(changed_files) and all(
+        _is_test_file(path) or _is_documentation_file(path) for path in changed_files
+    )
+
+
+def _is_test_file(path: str) -> bool:
+    lowered = path.replace("\\", "/").lower()
+    name = lowered.rsplit("/", 1)[-1]
+    segments = set(lowered.split("/"))
+    return (
+        "tests" in segments
+        or name.startswith("test_")
+        or name.endswith("_test.py")
+        or ".test." in name
+        or ".spec." in name
+    )
+
+
+def _is_documentation_file(path: str) -> bool:
+    lowered = path.replace("\\", "/").lower()
+    segments = set(lowered.split("/"))
+    return "docs" in segments or lowered.endswith((".md", ".rst", ".txt", ".adoc"))
 
 
 def _truncate_diff(diff: str) -> str:

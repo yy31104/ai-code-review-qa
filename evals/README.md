@@ -4,14 +4,17 @@ This directory contains the first production-grade regression harness for `ai-co
 
 ## What it measures
 
-The current seed dataset checks whether the demo review engine keeps stable behavior for:
+The current 18-case dataset checks whether the demo review engine keeps stable behavior for:
 
 - risk-level classification for high-risk terms such as auth, token, subprocess, and SQL;
+- false-positive guards for nearby non-risk terms such as tokenizer, author, deleted-at, and docs/test-only payment wording;
 - missing-test detection when production files change without nearby test files;
-- minimum useful finding counts for possible bugs, missing tests, suggested tests, and reliability concerns;
+- exact or minimum useful finding counts for possible bugs, missing tests, suggested tests, and reliability concerns;
 - preservation of changed-file context in the structured review output.
 
 This is not yet a model-quality benchmark. It is a baseline regression harness that prevents accidental behavior drift while the project moves from MVP to product-like architecture.
+
+The eval runner calls the public review engine through `predict()` while forcing deterministic demo mode for each case. It does not call OpenAI and does not require credentials.
 
 ## Dataset format
 
@@ -42,6 +45,7 @@ Supported expectation keys:
 
 - `risk_level`: exact expected `ReviewResult.risk_level`.
 - `min_counts`: minimum list lengths for fields such as `possible_bugs` or `missing_tests`.
+- `exact_counts`: exact list lengths for branch-sensitive behavior such as test-file detection.
 - `required_keywords`: required case-insensitive substrings in a review field.
 - `changed_file_keywords`: required case-insensitive substrings in `changed_files`.
 
@@ -64,4 +68,4 @@ Add new cases when review behavior changes, especially for:
 - new language or framework support;
 - GitHub PR adapter behavior.
 
-Keep the first dataset small and hand-reviewed. The next milestone is to grow from 5 seed cases to 30-50 golden cases with explicit false-positive and false-negative examples.
+Keep the dataset hand-reviewed and deterministic. The next milestone is to grow from this 18-case baseline to 30-50 golden cases with explicit false-positive and false-negative examples.

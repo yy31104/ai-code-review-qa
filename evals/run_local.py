@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,7 +13,7 @@ APP_DIR = REPO_ROOT / "backend" / "app"
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
-from llm_reviewer import mock_review_json  # noqa: E402
+from llm_reviewer import review_diff  # noqa: E402
 from schemas import ReviewResult  # noqa: E402
 
 DEFAULT_DATASET = Path(__file__).resolve().parent / "data" / "golden_cases.jsonl"
@@ -60,7 +61,7 @@ def _validate_case(case: dict[str, Any], path: Path, line_number: int) -> None:
 
 
 def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
-    review = ReviewResult(**mock_review_json(case["diff"], case["changed_files"]))
+    review = predict(case)
     checks = _run_checks(review, case["expected"])
     passed = all(check.passed for check in checks)
     return {
@@ -71,6 +72,20 @@ def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
         "checks": [check.to_dict() for check in checks],
         "actual": _review_to_report_dict(review),
     }
+
+
+def predict(case: dict[str, Any]) -> ReviewResult:
+    """Run the public review path in deterministic demo mode for one eval case."""
+    previous_mode = os.environ.get("AI_REVIEW_MODE")
+    os.environ["AI_REVIEW_MODE"] = "demo"
+    try:
+        changed_files = [str(path) for path in case["changed_files"]]
+        return review_diff(str(case["diff"]), changed_files)
+    finally:
+        if previous_mode is None:
+            os.environ.pop("AI_REVIEW_MODE", None)
+        else:
+            os.environ["AI_REVIEW_MODE"] = previous_mode
 
 
 def _run_checks(review: ReviewResult, expected: dict[str, Any]) -> list[CheckResult]:
@@ -94,6 +109,18 @@ def _run_checks(review: ReviewResult, expected: dict[str, Any]) -> list[CheckRes
                 name=f"min_count:{field}",
                 passed=actual_count >= int(minimum),
                 detail=f"expected at least {minimum}, got {actual_count}",
+            )
+        )
+
+    exact_counts = expected.get("exact_counts", {})
+    for field, exact in exact_counts.items():
+        actual_value = getattr(review, field, [])
+        actual_count = len(actual_value) if isinstance(actual_value, list) else 0
+        checks.append(
+            CheckResult(
+                name=f"exact_count:{field}",
+                passed=actual_count == int(exact),
+                detail=f"expected exactly {exact}, got {actual_count}",
             )
         )
 
