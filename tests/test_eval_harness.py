@@ -15,7 +15,7 @@ def test_seed_dataset_loads_and_passes() -> None:
     cases = load_cases(DEFAULT_DATASET)
     report = build_report(cases)
 
-    assert report["summary"]["total_cases"] == 18
+    assert report["summary"]["total_cases"] == 23
     assert report["summary"]["failed_cases"] == 0
     assert report["summary"]["case_pass_rate"] == 1.0
 

@@ -148,12 +148,13 @@ python evals/render_report.py \
   --html reports/evals/summary.html
 ```
 
-The 18-case seed dataset currently covers:
+The 23-case seed dataset currently covers:
 
 - authentication/token changes without tests
 - test-only changes that should stay low risk
 - large cross-file changes that should raise risk level
 - subprocess, SQL, delete, and payment-sensitive changes
+- risk terms inside camelCase/PascalCase identifiers
 - false-positive guards for nearby low-risk terms
 - empty-diff/untracked-file cases with limited line-level analysis
 

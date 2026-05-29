@@ -29,6 +29,10 @@ RISKY_TERMS = {
     "subprocess",
     "sql",
 }
+# Identifier-aware tokenizer: split on non-alphanumeric separators and on
+# camelCase/PascalCase boundaries before lowercasing, so "authToken" yields
+# {"auth", "token"} while "author" and "tokenizer" stay single tokens.
+_IDENTIFIER_TOKEN_RE = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|[0-9]+")
 
 
 def review_diff(diff: str, changed_files: list[str]) -> ReviewResult:
@@ -192,17 +196,27 @@ def mock_review_json(diff: str, changed_files: list[str]) -> dict:
 
 
 def _estimate_risk(diff: str, changed_files: list[str]) -> str:
-    lowered = f"{diff}\n{' '.join(changed_files)}".lower()
-    # Whole-token matching reduces substring false positives like "author" or "tokenizer".
-    # This deterministic demo heuristic may miss camelCase/PascalCase identifiers such
-    # as authToken or deleteUser; camelCase-aware matching is a follow-up.
-    tokens = set(re.findall(r"[a-z0-9]+", lowered))
+    text = f"{diff}\n{' '.join(changed_files)}"
+    tokens = _risk_tokens(text)
 
     if tokens.intersection(RISKY_TERMS) and not _all_changed_files_are_non_runtime(changed_files):
         return "High"
     if len(changed_files) > 5:
         return "Medium"
     return "Low"
+
+
+def _risk_tokens(text: str) -> set[str]:
+    """Split text into lowercased word tokens, honoring identifier casing.
+
+    Separators (underscores, dots, spaces) break tokens, and camelCase or
+    PascalCase humps are split too, so risk terms embedded in identifiers such
+    as ``authToken`` or ``PaymentProcessor`` are detected. Because each
+    lowercase run stays intact, lookalikes like ``author`` or ``tokenizer`` are
+    not mistaken for ``auth`` or ``token``. Detection of risk terms fused into a
+    single lowercase run (for example ``authtoken``) remains out of scope.
+    """
+    return {match.group(0).lower() for match in _IDENTIFIER_TOKEN_RE.finditer(text)}
 
 
 def _all_changed_files_are_non_runtime(changed_files: list[str]) -> bool:
