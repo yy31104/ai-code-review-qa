@@ -21,6 +21,21 @@ Modern teams need fast feedback before code reaches human reviewers. This tool h
 - Markdown/HTML eval summary artifacts
 - GitHub Actions artifact upload
 
+## Production Upgrade Highlights
+
+A three-PR production-upgrade phase added a deterministic regression baseline around the review engine so behavior changes are caught before they ship:
+
+- Deterministic, offline eval harness that runs without API keys
+- 23 hand-reviewed golden cases covering risk, missing-test, and false-positive behavior
+- 10 pytest tests covering the harness, the prediction seam, and risk tokenization
+- A `predict(case) -> ReviewResult` seam that grades cases through the public `review_diff()` path in forced demo mode
+- False-positive guards for lookalike terms such as `author`, `tokenizer`, and `deleted-at`/docs-only payment wording
+- camelCase/PascalCase risk-term support (e.g. `authToken`, `deleteUser`, `runSql`, `PaymentProcessor`)
+- GitHub Actions `eval-report` artifact (results JSON plus Markdown/HTML summaries) on PRs, pushes, and nightly runs
+- Demo mode remains credential-free; OpenAI mode stays optional and config-gated
+
+See [docs/portfolio-engineering-summary.md](docs/portfolio-engineering-summary.md) for the full engineering closeout.
+
 ## Sample Report Screenshot
 
 ![AI Code Review Report](docs/screenshots/report-preview.png)
