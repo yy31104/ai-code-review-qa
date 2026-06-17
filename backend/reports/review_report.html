@@ -435,7 +435,7 @@
           <span class="engine-label">AI review engine</span>
             demo mode using structured AI review output
           &nbsp;&middot;&nbsp;
-          Generated <time>2026-06-17 21:55</time>
+          Generated <time>2026-06-17 22:25</time>
         </p>
       </div>
       <div style="padding-top:4px;">
@@ -447,7 +447,7 @@
     <div class="summary-grid">
       <div class="stat-card">
         <div class="stat-label">Changed Files</div>
-        <div class="stat-value">9</div>
+        <div class="stat-value">11</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Risk Level</div>
@@ -481,7 +481,7 @@
     <section class="section">
       <h2>Project Summary</h2>
       <div class="section-body">
-        <p>Reviewed 9 changed file(s) via the AI review engine. Running in demo mode using structured AI review output.</p>
+        <p>Reviewed 11 changed file(s) via the AI review engine. Running in demo mode using structured AI review output.</p>
       </div>
     </section>
 
@@ -489,19 +489,21 @@
     <section class="section">
       <h2>
         Changed Files
-        <span class="h2-count">9 file(s)</span>
+        <span class="h2-count">11 file(s)</span>
       </h2>
       <div class="section-body">
           <ul class="file-list">
+              <li>.github/workflows/pr-comment.yml</li>
+              <li>.gitignore</li>
               <li>README.md</li>
-              <li>backend/app/diff_index.py</li>
-              <li>backend/app/llm_reviewer.py</li>
+              <li>SECURITY.md</li>
+              <li>backend/app/github_review_reporter.py</li>
+              <li>backend/app/main.py</li>
               <li>backend/reports/review_report.html</li>
-              <li>evals/data/golden_cases.jsonl</li>
-              <li>evals/run_local.py</li>
-              <li>tests/test_anchored_findings.py</li>
-              <li>tests/test_diff_positioning.py</li>
-              <li>tests/test_eval_harness.py</li>
+              <li>docs/DATA_HANDLING.md</li>
+              <li>docs/RELEASE_CHECKLIST.md</li>
+              <li>tests/test_emit_github_review_cli.py</li>
+              <li>tests/test_github_review_reporter.py</li>
           </ul>
       </div>
     </section>
@@ -514,7 +516,7 @@
       </h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>`README.md`: validate inputs at function boundaries - check for None, empty values, and unexpected types.</li>
+        <li>`pr-comment.yml`: validate inputs at function boundaries - check for None, empty values, and unexpected types.</li>
         <li>Error paths may fail silently; confirm each failure branch returns a descriptive message or raises a typed exception.</li>
     </ul>
 
@@ -540,7 +542,7 @@
       <h2>Suggested Test Cases</h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>Happy-path: call the primary function in `README.md` with valid inputs and assert the expected return value.</li>
+        <li>Happy-path: call the primary function in `pr-comment.yml` with valid inputs and assert the expected return value.</li>
         <li>Invalid-input: pass None, an empty string, or an out-of-range value and assert a clear error is raised.</li>
         <li>Regression: add a test that pins any behavior this change is specifically intended to fix or improve.</li>
     </ul>
@@ -570,7 +572,7 @@
             <span class="badge badge-pass">&#10003; Passed</span>
           <span>
             <strong>python</strong>
-              &mdash; 46 passed in 0.91s
+              &mdash; 63 passed in 1.62s
           </span>
         </div>
 
@@ -594,20 +596,22 @@
           <details>
             <summary>View full test output</summary>
             <pre>============================= test session starts =============================
-platform win32 -- Python 3.11.9, pytest-9.0.2, pluggy-1.6.0
+platform win32 -- Python 3.11.9, pytest-9.0.3, pluggy-1.6.0
 rootdir: &lt;repo&gt;
 configfile: pytest.ini
 testpaths: tests
 plugins: anyio-4.13.0
-collected 46 items
+collected 63 items
 
-tests/test_anchored_findings.py .............                            [ 28%]
-tests/test_diff_positioning.py .............                             [ 56%]
-tests/test_eval_harness.py ....                                          [ 65%]
-tests/test_review_decision.py ..........                                 [ 86%]
+tests/test_anchored_findings.py .............                            [ 20%]
+tests/test_diff_positioning.py .............                             [ 41%]
+tests/test_emit_github_review_cli.py .                                   [ 42%]
+tests/test_eval_harness.py ....                                          [ 49%]
+tests/test_github_review_reporter.py ................                    [ 74%]
+tests/test_review_decision.py ..........                                 [ 90%]
 tests/test_risk_estimation.py ......                                     [100%]
 
-============================= 46 passed in 0.91s ==============================</pre>
+============================= 63 passed in 1.62s ==============================</pre>
           </details>
 
       </div>
@@ -652,18 +656,18 @@ tests/test_risk_estimation.py ......                                     [100%]
           <ul class="anchored-finding-list">
               <li>
                 <div class="anchored-finding-meta">
-                    <code>README.md</code>
-                  <span>line 33</span>
+                    <code>.github/workflows/pr-comment.yml</code>
+                  <span>file-level</span>
                   <span>possible_bug</span>
                   <span class="badge badge-medium">medium</span>
                   <span>50% confidence</span>
                 </div>
-                <p class="anchored-finding-message">`README.md`: validate inputs at function boundaries - check for None, empty values, and unexpected types.</p>
+                <p class="anchored-finding-message">`pr-comment.yml`: validate inputs at function boundaries - check for None, empty values, and unexpected types.</p>
               </li>
               <li>
                 <div class="anchored-finding-meta">
-                    <code>README.md</code>
-                  <span>line 33</span>
+                    <code>.github/workflows/pr-comment.yml</code>
+                  <span>file-level</span>
                   <span>possible_bug</span>
                   <span class="badge badge-medium">medium</span>
                   <span>50% confidence</span>
@@ -672,8 +676,8 @@ tests/test_risk_estimation.py ......                                     [100%]
               </li>
               <li>
                 <div class="anchored-finding-meta">
-                    <code>README.md</code>
-                  <span>line 33</span>
+                    <code>.github/workflows/pr-comment.yml</code>
+                  <span>file-level</span>
                   <span>security_reliability</span>
                   <span class="badge badge-high">high</span>
                   <span>60% confidence</span>
@@ -682,8 +686,8 @@ tests/test_risk_estimation.py ......                                     [100%]
               </li>
               <li>
                 <div class="anchored-finding-meta">
-                    <code>README.md</code>
-                  <span>line 33</span>
+                    <code>.github/workflows/pr-comment.yml</code>
+                  <span>file-level</span>
                   <span>security_reliability</span>
                   <span class="badge badge-high">high</span>
                   <span>60% confidence</span>
@@ -692,8 +696,8 @@ tests/test_risk_estimation.py ......                                     [100%]
               </li>
               <li>
                 <div class="anchored-finding-meta">
-                    <code>README.md</code>
-                  <span>line 33</span>
+                    <code>.github/workflows/pr-comment.yml</code>
+                  <span>file-level</span>
                   <span>missing_test</span>
                   <span class="badge badge-low">low</span>
                   <span>70% confidence</span>
@@ -708,7 +712,7 @@ tests/test_risk_estimation.py ......                                     [100%]
                   <span class="badge badge-info">info</span>
                   <span>40% confidence</span>
                 </div>
-                <p class="anchored-finding-message">Happy-path: call the primary function in `README.md` with valid inputs and assert the expected return value.</p>
+                <p class="anchored-finding-message">Happy-path: call the primary function in `pr-comment.yml` with valid inputs and assert the expected return value.</p>
               </li>
               <li>
                 <div class="anchored-finding-meta">

@@ -20,6 +20,12 @@ git diff --check
 - GitHub Actions permissions stay minimal
 - branch protection checks enabled
 - `LICENSE` and `SECURITY.md` present
+- Markdown escaping tests pass
+- dry-run PR comment payload workflow is `workflow_dispatch` only
+- dry-run PR comment payload workflow has `contents: read`
+- dry-run PR comment payload workflow has no `pull-requests: write`
+- payload artifact contains no secrets
+- `reports/github/` not committed
 
 ## Branch and PR Hygiene
 
