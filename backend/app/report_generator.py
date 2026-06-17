@@ -23,7 +23,9 @@ def generate_report(review: ReviewResult, output_path: str | Path) -> Path:
 
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     html = template.render(review=_to_dict(review), generated_at=generated_at)
-    output.write_text(html, encoding="utf-8")
+    html = html.replace("\r\n", "\n").replace("\r", "\n")
+    with output.open("w", encoding="utf-8", newline="\n") as file:
+        file.write(html)
     return output
 
 

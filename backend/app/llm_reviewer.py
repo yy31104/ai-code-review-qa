@@ -6,14 +6,14 @@ from textwrap import dedent
 
 from dotenv import load_dotenv
 
-from schemas import ReviewResult
+from schemas import ReviewResult, TestResult
 
 
-HUMAN_REVIEW_EXPLANATION = (
-    "AI findings and automated test results should be reviewed by a developer before merging."
-)
-DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
+DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 MAX_DIFF_CHARS = 20000
+NEEDS_HUMAN_REVIEW = "needs_human_review"
+REVIEW_RECOMMENDED = "review_recommended"
+LOOKS_GOOD = "looks_good"
 RISKY_TERMS = {
     "auth",
     "authentication",
@@ -33,6 +33,41 @@ RISKY_TERMS = {
 # camelCase/PascalCase boundaries before lowercasing, so "authToken" yields
 # {"auth", "token"} while "author" and "tokenizer" stay single tokens.
 _IDENTIFIER_TOKEN_RE = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|[0-9]+")
+
+
+def derive_decision(risk_level: str, test_result: TestResult) -> tuple[str, str]:
+    """Derive a deterministic review decision from risk and automated tests."""
+    normalized_risk = risk_level.strip().lower()
+    has_test_command = bool(test_result.command.strip())
+
+    if has_test_command and not test_result.passed:
+        return (
+            NEEDS_HUMAN_REVIEW,
+            "Automated tests failed, so a developer should review the test output, AI findings, and change context before merging.",
+        )
+
+    if normalized_risk == "high":
+        return (
+            NEEDS_HUMAN_REVIEW,
+            "High-risk changes should receive human review; a developer should inspect the AI findings and automated test results before merging.",
+        )
+
+    if normalized_risk == "medium":
+        return (
+            REVIEW_RECOMMENDED,
+            "Review is recommended for this medium-risk change; a developer should verify the AI findings and automated test results before merging.",
+        )
+
+    if normalized_risk == "low":
+        return (
+            LOOKS_GOOD,
+            "Looks good from the deterministic risk and test signals, but a developer should still verify the AI findings before merging.",
+        )
+
+    return (
+        NEEDS_HUMAN_REVIEW,
+        "Risk level was not recognized, so a developer should review the AI findings and automated test results before merging.",
+    )
 
 
 def review_diff(diff: str, changed_files: list[str]) -> ReviewResult:
@@ -95,11 +130,16 @@ def _review_with_openai(diff: str, changed_files: list[str]) -> ReviewResult:
                     practical, and grounded in the provided git diff.
 
                     Set changed_files to the provided changed file list.
-                    Set human_review_decision to:
-                    AI findings and automated test results should be reviewed by a developer before merging.
+                    Set review_decision from risk_level before tests run:
+                    High -> needs_human_review, Medium -> review_recommended,
+                    Low -> looks_good.
+                    Keep human_review_decision human-in-the-loop and mention that
+                    a developer should verify the AI findings before merging.
 
                     The automated_test_results field is a placeholder and will
-                    be replaced by the CLI after tests run.
+                    be replaced by the CLI after tests run. The CLI will also
+                    recompute review_decision and human_review_decision from
+                    risk_level plus the real automated test result.
                     """
                 ).strip(),
             },
@@ -125,6 +165,10 @@ def _review_with_openai(diff: str, changed_files: list[str]) -> ReviewResult:
 
     parsed.review_mode = "openai"
     parsed.review_model = model
+    parsed.review_decision, parsed.human_review_decision = derive_decision(
+        parsed.risk_level,
+        parsed.automated_test_results,
+    )
     return parsed
 
 
@@ -162,6 +206,18 @@ def mock_review_json(diff: str, changed_files: list[str]) -> dict:
         "Boundary-value coverage is missing: add tests for min/max inputs, empty collections, and off-by-one conditions."
     )
 
+    test_result = TestResult(
+        project_type="not run",
+        command="",
+        passed=False,
+        exit_code=0,
+        output="",
+        error=None,
+        test_summary="",
+    )
+    test_payload = test_result.model_dump() if hasattr(test_result, "model_dump") else test_result.dict()
+    review_decision, human_review_decision = derive_decision(risk_level, test_result)
+
     return {
         "project_summary": summary,
         "changed_files": changed_files,
@@ -177,21 +233,14 @@ def mock_review_json(diff: str, changed_files: list[str]) -> dict:
             "Do not log secrets, tokens, or user-identifiable data - scrub sensitive fields before writing to any log sink.",
             "Wrap subprocess calls and external I/O in try/except to prevent unhandled exceptions from crashing the process.",
         ],
-        "automated_test_results": {
-            "project_type": "not run",
-            "command": "",
-            "passed": False,
-            "exit_code": 0,
-            "output": "",
-            "error": None,
-            "test_summary": "",
-        },
+        "automated_test_results": test_payload,
         "recommended_actions": [
             "Address the possible bugs listed above before requesting a final review.",
             "Ensure all automated tests pass in CI before merging.",
             "Expand test coverage around the highest-risk code paths identified in this report.",
         ],
-        "human_review_decision": HUMAN_REVIEW_EXPLANATION,
+        "review_decision": review_decision,
+        "human_review_decision": human_review_decision,
     }
 
 

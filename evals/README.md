@@ -11,6 +11,7 @@ The current 23-case dataset checks whether the demo review engine keeps stable b
 - false-positive guards for nearby non-risk terms such as tokenizer, author, deleted-at, and docs/test-only payment wording;
 - missing-test detection when production files change without nearby test files;
 - exact or minimum useful finding counts for possible bugs, missing tests, suggested tests, and reliability concerns;
+- deterministic review-decision keys derived from risk level;
 - preservation of changed-file context in the structured review output.
 
 This is not yet a model-quality benchmark. It is a baseline regression harness that prevents accidental behavior drift while the project moves from MVP to product-like architecture.
@@ -30,6 +31,7 @@ Cases live in `evals/data/golden_cases.jsonl`. Each non-empty line is one JSON o
   "diff": "diff --git ...",
   "expected": {
     "risk_level": "High",
+    "review_decision": "needs_human_review",
     "min_counts": {
       "possible_bugs": 2,
       "missing_tests": 2
@@ -45,6 +47,7 @@ Cases live in `evals/data/golden_cases.jsonl`. Each non-empty line is one JSON o
 Supported expectation keys:
 
 - `risk_level`: exact expected `ReviewResult.risk_level`.
+- `review_decision`: exact expected `ReviewResult.review_decision`.
 - `min_counts`: minimum list lengths for fields such as `possible_bugs` or `missing_tests`.
 - `exact_counts`: exact list lengths for branch-sensitive behavior such as test-file detection.
 - `required_keywords`: required case-insensitive substrings in a review field.

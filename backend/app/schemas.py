@@ -27,4 +27,5 @@ class ReviewResult(BaseModel):
     security_reliability_concerns: List[str] = Field(default_factory=list)
     automated_test_results: TestResult = Field(default_factory=TestResult)
     recommended_actions: List[str] = Field(default_factory=list)
+    review_decision: str = "needs_human_review"
     human_review_decision: str
