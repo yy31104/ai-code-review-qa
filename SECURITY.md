@@ -40,9 +40,9 @@ The PR comment workflow is manual-only. Its default build job runs with `content
 
 Posted summary comment bodies are passed to `gh api` with `--input` JSON files, not interpolated into shell commands.
 
-The same-repo PR summary workflow uses `pull_request`, not `pull_request_target`. It gates every job on `github.event.pull_request.head.repo.full_name == github.repository`, so fork PRs skip entirely and do not get checked out, tested, artifacted, or commented on. Its post job is additionally gated by `AI_REVIEW_SUMMARY_AUTOPOST == 'true'` and is the only job with `pull-requests: write`. No secrets are exposed to forks.
+The same-repo PR summary workflow uses `pull_request`, not `pull_request_target`. It gates every job on `github.event.pull_request.head.repo.full_name == github.repository`, so fork PRs skip entirely and do not get checked out, tested, artifacted, or commented on. Its summary post job is gated by `AI_REVIEW_SUMMARY_AUTOPOST == 'true'`. No secrets are exposed to forks.
 
-Inline review payload generation is artifact-only in the current release. It does not post inline comments and does not add inline comment write permission. Future inline posting must use GitHub create-review behind a separate opt-in gate, revalidate every target line against `DiffIndex` immediately before posting, escape every body, keep fork PRs skipped, and continue to forbid `pull_request_target`.
+Inline create-review posting is behind a separate opt-in gate and only runs when both `AI_REVIEW_SUMMARY_AUTOPOST == 'true'` and `AI_REVIEW_INLINE_COMMENTS == 'true'`. Summary posting runs first and remains the fallback output. The inline post job scopes permissions to `contents: read` and `pull-requests: write`, recomputes the PR diff, revalidates every target line against `DiffIndex` immediately before posting, filters already-posted fingerprints, and passes the create-review body to `gh api` with `--input`. GitHub create-review failures, including 422-style invalid-review failures, are emitted as warnings and are non-fatal because the summary comment already exists. Fork PRs remain skipped and `pull_request_target` remains forbidden.
 
 ## Out of Scope
 

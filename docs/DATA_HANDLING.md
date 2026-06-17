@@ -50,7 +50,7 @@ When `post_summary` is explicitly set to `true`, the workflow uses the repositor
 
 For same-repository pull requests, `.github/workflows/pr-summary.yml` can generate one auto-updating summary comment when the repository variable `AI_REVIEW_SUMMARY_AUTOPOST` is set to `true`. Fork pull requests are skipped entirely. Summary comments are visible to repository collaborators; on public repositories, they are public. Comments may trigger GitHub notifications. The raw git diff is not posted.
 
-The inline review payload is currently an artifact only and does not post comments. Future inline comments will be visible to repository collaborators; on public repositories, they will be public and may trigger GitHub notifications. Future posting must use the fingerprinted payload, revalidate every line against `DiffIndex`, and stay behind a separate opt-in gate.
+Inline comments are off by default and require both `AI_REVIEW_SUMMARY_AUTOPOST=true` and `AI_REVIEW_INLINE_COMMENTS=true`. When enabled, inline comments are visible to repository collaborators; on public repositories, they are public and may trigger GitHub notifications. Fingerprint markers are embedded in inline comment bodies so repeated workflow runs can skip already-posted findings. The workflow recomputes the PR diff and revalidates each inline line before posting, but it does not post the raw diff.
 
 The no-store boundary still holds for this tool: it does not add a database, server-side history, telemetry, or hosted backend. GitHub stores comments that the user explicitly chooses to post.
 
