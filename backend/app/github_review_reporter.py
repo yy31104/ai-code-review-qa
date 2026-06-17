@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from collections import defaultdict
@@ -7,17 +8,21 @@ from pathlib import Path
 from typing import Any
 
 from diff_index import DiffIndex
+
 try:
-    from github_constants import SUMMARY_MARKER
+    from github_constants import INLINE_FINGERPRINT_PREFIX, INLINE_FINGERPRINT_SUFFIX, SUMMARY_MARKER
 except ImportError:  # pragma: no cover - package import fallback
-    from .github_constants import SUMMARY_MARKER
+    from .github_constants import INLINE_FINGERPRINT_PREFIX, INLINE_FINGERPRINT_SUFFIX, SUMMARY_MARKER
 from schemas import Finding, ReviewResult
 
 
 MAX_MESSAGE_CHARS = 1000
+MAX_INLINE_COMMENTS = 5
+INLINE_CONFIDENCE_FLOOR = 0.5
 _TRUNCATION_MARKER = " ... (truncated)"
 _SUMMARY_ONLY_CATEGORIES = {"suggested_test", "recommended_action"}
 _SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2, "info": 3}
+_INLINE_SEVERITIES = {"high", "medium"}
 
 
 def escape_markdown(text: str) -> str:
@@ -52,6 +57,44 @@ def is_commentable(diff_index: DiffIndex, finding: Finding) -> bool:
     return finding.line in diff_file.right_lines
 
 
+def finding_fingerprint(finding: Finding) -> str:
+    """Return a stable fingerprint for deduping one finding across pushes."""
+    normalized_message = _normalize_message(finding.message)
+    message_hash = _sha1_hex(normalized_message)
+    parts = [
+        _normalize_path(finding.file or ""),
+        str(finding.side),
+        str(finding.line or ""),
+        str(finding.category),
+        message_hash,
+    ]
+    return _sha1_hex("\x00".join(parts))
+
+
+def route_inline_findings(
+    review: ReviewResult,
+    diff_index: DiffIndex,
+    *,
+    max_inline: int = MAX_INLINE_COMMENTS,
+    confidence_floor: float = INLINE_CONFIDENCE_FLOOR,
+) -> tuple[list[Finding], list[Finding]]:
+    """Split findings into inline candidates and summary-routed findings."""
+    inline_candidates: list[Finding] = []
+    summary_findings: list[Finding] = []
+
+    for finding in review.findings:
+        if _is_inline_candidate(finding, diff_index, confidence_floor=confidence_floor):
+            inline_candidates.append(finding)
+        else:
+            summary_findings.append(finding)
+
+    sorted_candidates = sorted(inline_candidates, key=_inline_sort_key)
+    inline_limit = max(0, int(max_inline))
+    inline_findings = sorted_candidates[:inline_limit]
+    overflow_findings = sorted_candidates[inline_limit:]
+    return inline_findings, summary_findings + overflow_findings
+
+
 def build_review_payload(
     review: ReviewResult,
     diff_index: DiffIndex,
@@ -74,6 +117,46 @@ def build_review_payload(
     payload: dict[str, Any] = {
         "event": "COMMENT",
         "body": build_summary_comment_body(review, diff_index),
+        "comments": comments,
+    }
+    if head_sha is not None:
+        payload["commit_id"] = head_sha
+
+    return payload
+
+
+def build_inline_review_payload(
+    review: ReviewResult,
+    diff_index: DiffIndex,
+    *,
+    head_sha: str | None = None,
+    max_inline: int = MAX_INLINE_COMMENTS,
+) -> dict[str, Any]:
+    """Build a capped inline-review payload artifact without posting it."""
+    inline_limit = max(0, int(max_inline))
+    inline_findings, summary_findings = route_inline_findings(review, diff_index, max_inline=inline_limit)
+    eligible_count = len(_sorted_inline_candidates(review, diff_index))
+    overflow_count = max(0, eligible_count - inline_limit)
+
+    comments = [
+        {
+            "path": _normalize_path(str(finding.file)),
+            "line": finding.line,
+            "side": "RIGHT",
+            "body": _fingerprinted_inline_body(finding),
+        }
+        for finding in inline_findings
+    ]
+
+    payload: dict[str, Any] = {
+        "event": "COMMENT",
+        "body": _summary_body(
+            review,
+            summary_findings,
+            inline_count=len(inline_findings),
+            overflow_count=overflow_count,
+            inline_cap=inline_limit,
+        ),
         "comments": comments,
     }
     if head_sha is not None:
@@ -106,11 +189,24 @@ def _inline_body(finding: Finding) -> str:
     )
 
 
+def _fingerprinted_inline_body(finding: Finding) -> str:
+    fingerprint = finding_fingerprint(finding)
+    return "\n".join(
+        [
+            escape_markdown(finding.message),
+            "",
+            f"{INLINE_FINGERPRINT_PREFIX}{fingerprint}{INLINE_FINGERPRINT_SUFFIX}",
+        ]
+    )
+
+
 def _summary_body(
     review: ReviewResult,
     summary_findings: list[Finding],
     *,
     inline_count: int,
+    overflow_count: int = 0,
+    inline_cap: int | None = None,
 ) -> str:
     lines = [
         SUMMARY_MARKER,
@@ -125,6 +221,18 @@ def _summary_body(
         "",
         "Human-in-the-loop note: this dry-run payload is advisory only; a developer must verify findings before merging.",
     ]
+
+    if overflow_count:
+        cap_label = inline_cap if inline_cap is not None else inline_count
+        lines.extend(
+            [
+                "",
+                (
+                    f"Inline overflow note: {overflow_count} eligible finding(s) exceeded "
+                    f"the inline cap of {cap_label} and were routed to this summary."
+                ),
+            ]
+        )
 
     lines.extend(["", "### Summary-routed findings"])
     if not summary_findings:
@@ -155,6 +263,30 @@ def _partition_findings(review: ReviewResult, diff_index: DiffIndex) -> tuple[li
             summary_findings.append(finding)
 
     return inline_findings, summary_findings
+
+
+def _sorted_inline_candidates(review: ReviewResult, diff_index: DiffIndex) -> list[Finding]:
+    return sorted(
+        (
+            finding
+            for finding in review.findings
+            if _is_inline_candidate(finding, diff_index, confidence_floor=INLINE_CONFIDENCE_FLOOR)
+        ),
+        key=_inline_sort_key,
+    )
+
+
+def _is_inline_candidate(
+    finding: Finding,
+    diff_index: DiffIndex,
+    *,
+    confidence_floor: float,
+) -> bool:
+    return (
+        is_commentable(diff_index, finding)
+        and str(finding.severity).lower() in _INLINE_SEVERITIES
+        and float(finding.confidence) >= confidence_floor
+    )
 
 
 def _test_status(review: ReviewResult) -> str:
@@ -221,5 +353,13 @@ def _has_partial_html_entity(value: str) -> bool:
     return bool(match)
 
 
+def _normalize_message(message: str) -> str:
+    return " ".join(str(message).split())
+
+
 def _normalize_path(path: str) -> str:
     return path.strip().strip('"').replace("\\", "/")
+
+
+def _sha1_hex(value: str) -> str:
+    return hashlib.sha1(value.encode("utf-8")).hexdigest()

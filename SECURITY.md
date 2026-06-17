@@ -42,6 +42,8 @@ Posted summary comment bodies are passed to `gh api` with `--input` JSON files, 
 
 The same-repo PR summary workflow uses `pull_request`, not `pull_request_target`. It gates every job on `github.event.pull_request.head.repo.full_name == github.repository`, so fork PRs skip entirely and do not get checked out, tested, artifacted, or commented on. Its post job is additionally gated by `AI_REVIEW_SUMMARY_AUTOPOST == 'true'` and is the only job with `pull-requests: write`. No secrets are exposed to forks.
 
+Inline review payload generation is artifact-only in the current release. It does not post inline comments and does not add inline comment write permission. Future inline posting must use GitHub create-review behind a separate opt-in gate, revalidate every target line against `DiffIndex` immediately before posting, escape every body, keep fork PRs skipped, and continue to forbid `pull_request_target`.
+
 ## Out of Scope
 
 - upstream dependency CVEs unless this project adds an unsafe integration or configuration

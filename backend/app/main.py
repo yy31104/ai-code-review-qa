@@ -6,7 +6,12 @@ from pathlib import Path
 
 from diff_index import parse_unified_diff
 from git_diff_reader import read_git_diff
-from github_review_reporter import build_review_payload, build_summary_comment_body, write_payload
+from github_review_reporter import (
+    build_inline_review_payload,
+    build_review_payload,
+    build_summary_comment_body,
+    write_payload,
+)
 from llm_reviewer import derive_decision, review_diff
 from report_generator import generate_report
 from test_runner import run_tests
@@ -22,7 +27,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--head", help="Head git ref for commit range diff. Use with --base.")
     parser.add_argument("--emit-github-review", help="Optional path for a dry-run GitHub review payload JSON.")
     parser.add_argument("--emit-summary-comment", help="Optional path for a dry-run GitHub summary comment JSON.")
-    parser.add_argument("--head-sha", help="Optional commit SHA to include in the dry-run GitHub review payload.")
+    parser.add_argument("--emit-inline-review", help="Optional path for a dry-run GitHub inline review payload JSON.")
+    parser.add_argument("--head-sha", help="Optional commit SHA to include in dry-run GitHub review payloads.")
 
     args = parser.parse_args()
     if bool(args.base) != bool(args.head):
@@ -36,6 +42,7 @@ def main() -> int:
     output_path = Path(args.output).resolve()
     github_review_path = Path(args.emit_github_review).resolve() if args.emit_github_review else None
     summary_comment_path = Path(args.emit_summary_comment).resolve() if args.emit_summary_comment else None
+    inline_review_path = Path(args.emit_inline_review).resolve() if args.emit_inline_review else None
 
     try:
         git_result = read_git_diff(repo_path, base=args.base, head=args.head)
@@ -53,6 +60,7 @@ def main() -> int:
         report_path = generate_report(review, output_path)
         emitted_payload_path = None
         emitted_summary_path = None
+        emitted_inline_path = None
         diff_index = None
         if github_review_path:
             diff_index = parse_unified_diff(git_result.diff)
@@ -63,6 +71,11 @@ def main() -> int:
                 diff_index = parse_unified_diff(git_result.diff)
             summary_body = build_summary_comment_body(review, diff_index)
             emitted_summary_path = write_payload({"body": summary_body}, summary_comment_path)
+        if inline_review_path:
+            if diff_index is None:
+                diff_index = parse_unified_diff(git_result.diff)
+            inline_payload = build_inline_review_payload(review, diff_index, head_sha=args.head_sha)
+            emitted_inline_path = write_payload(inline_payload, inline_review_path)
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -72,6 +85,8 @@ def main() -> int:
         print(f"GitHub review payload generated: {emitted_payload_path}")
     if emitted_summary_path:
         print(f"GitHub summary comment generated: {emitted_summary_path}")
+    if emitted_inline_path:
+        print(f"GitHub inline review payload generated: {emitted_inline_path}")
     return 0
 
 

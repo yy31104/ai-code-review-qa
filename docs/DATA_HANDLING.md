@@ -38,9 +38,9 @@ Test output path sanitization maps the repository root to `<repo>` and normalize
 
 The committed sample report should be demo-mode and credential-free.
 
-## GitHub Review Payload (Dry Run)
+## GitHub Review Payloads (Dry Run)
 
-The optional `--emit-github-review` CLI flag writes a local JSON payload shaped like a GitHub create-review request. The optional `--emit-summary-comment` flag writes a local JSON body for a marker-based PR summary comment. These payloads may contain finding messages, file paths, line numbers, category, severity, review verdict, risk level, and test status.
+The optional `--emit-github-review` CLI flag writes a local JSON payload shaped like a GitHub create-review request. The optional `--emit-summary-comment` flag writes a local JSON body for a marker-based PR summary comment. The optional `--emit-inline-review` flag writes a dry-run inline review payload. These payloads may contain finding messages, file paths, line numbers, category, severity, confidence, finding fingerprints, review verdict, risk level, and test status.
 
 The payloads do not include the raw git diff. They are generated from the final `ReviewResult` plus a local `DiffIndex` so inline finding counts and summary routing are derived from validated right-side diff lines.
 
@@ -49,6 +49,8 @@ By default, the workflow posts nothing to GitHub. The build job is a manual arti
 When `post_summary` is explicitly set to `true`, the workflow uses the repository-scoped `GITHUB_TOKEN` to create or patch one PR summary comment. Summary comments are visible to repository collaborators; on public repositories, they are public. Comments may trigger GitHub notifications. No raw git diff is posted.
 
 For same-repository pull requests, `.github/workflows/pr-summary.yml` can generate one auto-updating summary comment when the repository variable `AI_REVIEW_SUMMARY_AUTOPOST` is set to `true`. Fork pull requests are skipped entirely. Summary comments are visible to repository collaborators; on public repositories, they are public. Comments may trigger GitHub notifications. The raw git diff is not posted.
+
+The inline review payload is currently an artifact only and does not post comments. Future inline comments will be visible to repository collaborators; on public repositories, they will be public and may trigger GitHub notifications. Future posting must use the fingerprinted payload, revalidate every line against `DiffIndex`, and stay behind a separate opt-in gate.
 
 The no-store boundary still holds for this tool: it does not add a database, server-side history, telemetry, or hosted backend. GitHub stores comments that the user explicitly chooses to post.
 

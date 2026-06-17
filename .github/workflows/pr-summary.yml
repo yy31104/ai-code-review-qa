@@ -59,7 +59,8 @@ jobs:
             --head "$HEAD_SHA" \
             --head-sha "$HEAD_SHA" \
             --output backend/reports/review_report.html \
-            --emit-summary-comment reports/github/summary-comment.json
+            --emit-summary-comment reports/github/summary-comment.json \
+            --emit-inline-review reports/github/inline-review.json
 
       - name: Upload PR summary artifacts
         uses: actions/upload-artifact@v6
@@ -68,6 +69,7 @@ jobs:
           path: |
             backend/reports/review_report.html
             reports/github/summary-comment.json
+            reports/github/inline-review.json
           if-no-files-found: error
 
   post:
