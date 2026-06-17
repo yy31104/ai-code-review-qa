@@ -214,6 +214,12 @@
       border: 1px solid #ff818266;
     }
 
+    .badge-info {
+      background: #f6f8fa;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
     /* ── File list ── */
     .file-list {
       list-style: none;
@@ -249,6 +255,41 @@
     .finding-list li:last-child {
       border-bottom: none;
       padding-bottom: 0;
+    }
+
+    .anchored-finding-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .anchored-finding-list li {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .anchored-finding-list li:first-child {
+      padding-top: 0;
+    }
+
+    .anchored-finding-list li:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .anchored-finding-meta {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 7px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .anchored-finding-message {
+      color: var(--text);
+      font-size: 13px;
     }
 
     /* ── Code ── */
@@ -628,6 +669,38 @@
             <p><strong>Explanation:</strong> {{ review.human_review_decision }}</p>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- ── Anchored Findings ── -->
+    <section class="section">
+      <h2>
+        Anchored Findings
+        <span class="h2-count">{{ review.findings | default([]) | length }} item(s)</span>
+      </h2>
+      <div class="section-body">
+        {% if review.findings %}
+          <ul class="anchored-finding-list">
+            {% for finding in review.findings %}
+              <li>
+                <div class="anchored-finding-meta">
+                  {% if finding.file %}
+                    <code>{{ finding.file }}</code>
+                  {% else %}
+                    <code>unanchored</code>
+                  {% endif %}
+                  <span>{{ "line " ~ finding.line if finding.line is not none else "file-level" }}</span>
+                  <span>{{ finding.category }}</span>
+                  <span class="badge badge-{{ finding.severity }}">{{ finding.severity }}</span>
+                  <span>{{ "%.0f"|format(finding.confidence * 100) }}% confidence</span>
+                </div>
+                <p class="anchored-finding-message">{{ finding.message }}</p>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="empty">None reported.</p>
+        {% endif %}
       </div>
     </section>
 

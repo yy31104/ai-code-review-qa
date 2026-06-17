@@ -178,6 +178,12 @@
       border: 1px solid #ff818266;
     }
 
+    .badge-info {
+      background: #f6f8fa;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
     /* ── File list ── */
     .file-list {
       list-style: none;
@@ -213,6 +219,41 @@
     .finding-list li:last-child {
       border-bottom: none;
       padding-bottom: 0;
+    }
+
+    .anchored-finding-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .anchored-finding-list li {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .anchored-finding-list li:first-child {
+      padding-top: 0;
+    }
+
+    .anchored-finding-list li:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .anchored-finding-meta {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 7px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .anchored-finding-message {
+      color: var(--text);
+      font-size: 13px;
     }
 
     /* ── Code ── */
@@ -394,7 +435,7 @@
           <span class="engine-label">AI review engine</span>
             demo mode using structured AI review output
           &nbsp;&middot;&nbsp;
-          Generated <time>2026-06-17 16:03</time>
+          Generated <time>2026-06-17 20:50</time>
         </p>
       </div>
       <div style="padding-top:4px;">
@@ -406,7 +447,7 @@
     <div class="summary-grid">
       <div class="stat-card">
         <div class="stat-label">Changed Files</div>
-        <div class="stat-value">12</div>
+        <div class="stat-value">8</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Risk Level</div>
@@ -440,7 +481,7 @@
     <section class="section">
       <h2>Project Summary</h2>
       <div class="section-body">
-        <p>Reviewed 12 changed file(s) via the AI review engine. Running in demo mode using structured AI review output.</p>
+        <p>Reviewed 8 changed file(s) via the AI review engine. Running in demo mode using structured AI review output.</p>
       </div>
     </section>
 
@@ -448,22 +489,18 @@
     <section class="section">
       <h2>
         Changed Files
-        <span class="h2-count">12 file(s)</span>
+        <span class="h2-count">8 file(s)</span>
       </h2>
       <div class="section-body">
           <ul class="file-list">
-              <li>.github/workflows/ai-review.yml</li>
               <li>README.md</li>
               <li>backend/app/llm_reviewer.py</li>
-              <li>backend/app/main.py</li>
-              <li>backend/app/report_generator.py</li>
               <li>backend/app/schemas.py</li>
-              <li>backend/reports/review_report.html</li>
               <li>backend/templates/report.html</li>
-              <li>evals/README.md</li>
+              <li>docs/DATA_HANDLING.md</li>
               <li>evals/data/golden_cases.jsonl</li>
               <li>evals/run_local.py</li>
-              <li>tests/test_review_decision.py</li>
+              <li>tests/test_anchored_findings.py</li>
           </ul>
       </div>
     </section>
@@ -476,7 +513,7 @@
       </h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>`ai-review.yml`: validate inputs at function boundaries - check for None, empty values, and unexpected types.</li>
+        <li>`README.md`: validate inputs at function boundaries - check for None, empty values, and unexpected types.</li>
         <li>Error paths may fail silently; confirm each failure branch returns a descriptive message or raises a typed exception.</li>
     </ul>
 
@@ -502,7 +539,7 @@
       <h2>Suggested Test Cases</h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>Happy-path: call the primary function in `ai-review.yml` with valid inputs and assert the expected return value.</li>
+        <li>Happy-path: call the primary function in `README.md` with valid inputs and assert the expected return value.</li>
         <li>Invalid-input: pass None, an empty string, or an out-of-range value and assert a clear error is raised.</li>
         <li>Regression: add a test that pins any behavior this change is specifically intended to fix or improve.</li>
     </ul>
@@ -532,7 +569,7 @@
             <span class="badge badge-pass">&#10003; Passed</span>
           <span>
             <strong>python</strong>
-              &mdash; 20 passed in 0.81s
+              &mdash; 33 passed in 0.88s
           </span>
         </div>
 
@@ -561,13 +598,14 @@ rootdir: &lt;repo&gt;
 configfile: pytest.ini
 testpaths: tests
 plugins: anyio-4.13.0
-collected 20 items
+collected 33 items
 
-tests/test_eval_harness.py ....                                          [ 20%]
-tests/test_review_decision.py ..........                                 [ 70%]
+tests/test_anchored_findings.py .............                            [ 39%]
+tests/test_eval_harness.py ....                                          [ 51%]
+tests/test_review_decision.py ..........                                 [ 81%]
 tests/test_risk_estimation.py ......                                     [100%]
 
-============================= 20 passed in 0.81s ==============================</pre>
+============================= 33 passed in 0.88s ==============================</pre>
           </details>
 
       </div>
@@ -599,6 +637,128 @@ tests/test_risk_estimation.py ......                                     [100%]
             <p><strong>Explanation:</strong> High-risk changes should receive human review; a developer should inspect the AI findings and automated test results before merging.</p>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- ── Anchored Findings ── -->
+    <section class="section">
+      <h2>
+        Anchored Findings
+        <span class="h2-count">11 item(s)</span>
+      </h2>
+      <div class="section-body">
+          <ul class="anchored-finding-list">
+              <li>
+                <div class="anchored-finding-meta">
+                    <code>README.md</code>
+                  <span>line 19</span>
+                  <span>possible_bug</span>
+                  <span class="badge badge-medium">medium</span>
+                  <span>50% confidence</span>
+                </div>
+                <p class="anchored-finding-message">`README.md`: validate inputs at function boundaries - check for None, empty values, and unexpected types.</p>
+              </li>
+              <li>
+                <div class="anchored-finding-meta">
+                    <code>README.md</code>
+                  <span>line 19</span>
+                  <span>possible_bug</span>
+                  <span class="badge badge-medium">medium</span>
+                  <span>50% confidence</span>
+                </div>
+                <p class="anchored-finding-message">Error paths may fail silently; confirm each failure branch returns a descriptive message or raises a typed exception.</p>
+              </li>
+              <li>
+                <div class="anchored-finding-meta">
+                    <code>README.md</code>
+                  <span>line 19</span>
+                  <span>security_reliability</span>
+                  <span class="badge badge-high">high</span>
+                  <span>60% confidence</span>
+                </div>
+                <p class="anchored-finding-message">Do not log secrets, tokens, or user-identifiable data - scrub sensitive fields before writing to any log sink.</p>
+              </li>
+              <li>
+                <div class="anchored-finding-meta">
+                    <code>README.md</code>
+                  <span>line 19</span>
+                  <span>security_reliability</span>
+                  <span class="badge badge-high">high</span>
+                  <span>60% confidence</span>
+                </div>
+                <p class="anchored-finding-message">Wrap subprocess calls and external I/O in try/except to prevent unhandled exceptions from crashing the process.</p>
+              </li>
+              <li>
+                <div class="anchored-finding-meta">
+                    <code>README.md</code>
+                  <span>line 19</span>
+                  <span>missing_test</span>
+                  <span class="badge badge-low">low</span>
+                  <span>70% confidence</span>
+                </div>
+                <p class="anchored-finding-message">Boundary-value coverage is missing: add tests for min/max inputs, empty collections, and off-by-one conditions.</p>
+              </li>
+              <li>
+                <div class="anchored-finding-meta">
+                    <code>unanchored</code>
+                  <span>file-level</span>
+                  <span>suggested_test</span>
+                  <span class="badge badge-info">info</span>
+                  <span>40% confidence</span>
+                </div>
+                <p class="anchored-finding-message">Happy-path: call the primary function in `README.md` with valid inputs and assert the expected return value.</p>
+              </li>
+              <li>
+                <div class="anchored-finding-meta">
+                    <code>unanchored</code>
+                  <span>file-level</span>
+                  <span>suggested_test</span>
+                  <span class="badge badge-info">info</span>
+                  <span>40% confidence</span>
+                </div>
+                <p class="anchored-finding-message">Invalid-input: pass None, an empty string, or an out-of-range value and assert a clear error is raised.</p>
+              </li>
+              <li>
+                <div class="anchored-finding-meta">
+                    <code>unanchored</code>
+                  <span>file-level</span>
+                  <span>suggested_test</span>
+                  <span class="badge badge-info">info</span>
+                  <span>40% confidence</span>
+                </div>
+                <p class="anchored-finding-message">Regression: add a test that pins any behavior this change is specifically intended to fix or improve.</p>
+              </li>
+              <li>
+                <div class="anchored-finding-meta">
+                    <code>unanchored</code>
+                  <span>file-level</span>
+                  <span>recommended_action</span>
+                  <span class="badge badge-info">info</span>
+                  <span>40% confidence</span>
+                </div>
+                <p class="anchored-finding-message">Address the possible bugs listed above before requesting a final review.</p>
+              </li>
+              <li>
+                <div class="anchored-finding-meta">
+                    <code>unanchored</code>
+                  <span>file-level</span>
+                  <span>recommended_action</span>
+                  <span class="badge badge-info">info</span>
+                  <span>40% confidence</span>
+                </div>
+                <p class="anchored-finding-message">Ensure all automated tests pass in CI before merging.</p>
+              </li>
+              <li>
+                <div class="anchored-finding-meta">
+                    <code>unanchored</code>
+                  <span>file-level</span>
+                  <span>recommended_action</span>
+                  <span class="badge badge-info">info</span>
+                  <span>40% confidence</span>
+                </div>
+                <p class="anchored-finding-message">Expand test coverage around the highest-risk code paths identified in this report.</p>
+              </li>
+          </ul>
       </div>
     </section>
 

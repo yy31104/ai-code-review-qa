@@ -19,6 +19,7 @@ Modern teams need fast feedback before code reaches human reviewers. This tool h
 - Automatic test command detection for Python, Node.js, and .NET projects
 - Automated test execution
 - Deterministic review decision derived from risk level and automated test status
+- Anchored findings with file, line, category, severity, confidence, and message fields
 - GitHub-style HTML report generated with Jinja2
 - Local golden-case eval harness
 - Markdown/HTML eval summary artifacts
@@ -130,6 +131,12 @@ The HTML report verdict is deterministic and test-aware. After automated checks 
 - Low risk with passing or not-run tests: `looks_good`
 
 Tests that were not detected do not increase severity by themselves. Every verdict keeps a human-in-the-loop explanation so the report helps decide what to verify before merging.
+
+## Anchored Findings
+
+Review output includes an additive `findings` list alongside the existing human-readable string fields. Each finding can carry a file path, optional line number, category, severity, confidence score, and message.
+
+This structured format is the foundation for future inline PR comments. The current version renders anchored findings in the HTML report but does not post GitHub comments yet.
 
 ## Security & Trust
 
@@ -250,6 +257,7 @@ It includes:
 - missing tests
 - suggested test cases
 - security and reliability concerns
+- anchored findings
 - automated test results
 - recommended actions
 - deterministic review decision and human-review explanation

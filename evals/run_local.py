@@ -158,10 +158,118 @@ def _run_checks(review: ReviewResult, expected: dict[str, Any]) -> list[CheckRes
             )
         )
 
+    if "findings" in expected:
+        checks.extend(_run_finding_checks(review, expected["findings"]))
+
     if not checks:
         checks.append(CheckResult(name="schema_valid", passed=True, detail="ReviewResult parsed successfully"))
 
     return checks
+
+
+def _run_finding_checks(review: ReviewResult, expected: dict[str, Any]) -> list[CheckResult]:
+    checks: list[CheckResult] = []
+    findings = list(review.findings)
+
+    if "min_total" in expected:
+        minimum = int(expected["min_total"])
+        checks.append(
+            CheckResult(
+                name="findings:min_total",
+                passed=len(findings) >= minimum,
+                detail=f"expected at least {minimum}, got {len(findings)}",
+            )
+        )
+
+    if "max_total" in expected:
+        maximum = int(expected["max_total"])
+        checks.append(
+            CheckResult(
+                name="findings:max_total",
+                passed=len(findings) <= maximum,
+                detail=f"expected at most {maximum}, got {len(findings)}",
+            )
+        )
+
+    categories_present = expected.get("categories_present", [])
+    actual_categories = {_finding_attr(finding, "category") for finding in findings}
+    for category in categories_present:
+        found = category in actual_categories
+        checks.append(
+            CheckResult(
+                name=f"findings:category:{category}",
+                passed=found,
+                detail=f"category {category!r} {'found' if found else 'not found'}",
+            )
+        )
+
+    if "file_anchored" in expected:
+        expected_file_anchor = bool(expected["file_anchored"])
+        actual_file_anchor = any(bool(_finding_attr(finding, "file")) for finding in findings)
+        checks.append(
+            CheckResult(
+                name="findings:file_anchored",
+                passed=actual_file_anchor == expected_file_anchor,
+                detail=f"expected file anchored {expected_file_anchor}, got {actual_file_anchor}",
+            )
+        )
+
+    severity_at_least = expected.get("severity_at_least")
+    if severity_at_least:
+        checks.extend(_run_severity_checks(findings, severity_at_least))
+
+    if "require_line_anchor" in expected:
+        require_line_anchor = bool(expected["require_line_anchor"])
+        has_line_anchor = any(_finding_attr(finding, "line") is not None for finding in findings)
+        checks.append(
+            CheckResult(
+                name="findings:line_anchor",
+                passed=has_line_anchor == require_line_anchor,
+                detail=f"expected line anchor {require_line_anchor}, got {has_line_anchor}",
+            )
+        )
+
+    return checks
+
+
+def _run_severity_checks(findings: list[Any], severity_at_least: Any) -> list[CheckResult]:
+    if isinstance(severity_at_least, dict):
+        checks: list[CheckResult] = []
+        for category, minimum in severity_at_least.items():
+            matching = [
+                _finding_attr(finding, "severity")
+                for finding in findings
+                if _finding_attr(finding, "category") == category
+            ]
+            passed = any(_severity_rank(severity) >= _severity_rank(str(minimum)) for severity in matching)
+            checks.append(
+                CheckResult(
+                    name=f"findings:severity_at_least:{category}",
+                    passed=passed,
+                    detail=f"expected {category} severity at least {minimum!r}, got {matching or 'none'}",
+                )
+            )
+        return checks
+
+    minimum = str(severity_at_least)
+    passed = all(_severity_rank(_finding_attr(finding, "severity")) >= _severity_rank(minimum) for finding in findings)
+    return [
+        CheckResult(
+            name="findings:severity_at_least",
+            passed=passed,
+            detail=f"expected all finding severities at least {minimum!r}",
+        )
+    ]
+
+
+def _severity_rank(severity: str) -> int:
+    return {"info": 0, "low": 1, "medium": 2, "high": 3}.get(str(severity), -1)
+
+
+def _finding_attr(finding: Any, field: str) -> Any:
+    if isinstance(finding, dict):
+        return finding.get(field)
+    return getattr(finding, field, None)
 
 
 def _field_text(review: ReviewResult, field: str) -> str:
