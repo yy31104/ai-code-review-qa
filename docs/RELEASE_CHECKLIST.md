@@ -33,6 +33,13 @@ git diff --check
 - summary marker upsert prevents duplicate active summary comments
 - upsert decision tests pass
 - Markdown hardening tests pass
+- same-repo PR summary workflow uses `pull_request` only
+- same-repo PR summary workflow does not use `pull_request_target`
+- same-repo gate skips fork PRs entirely
+- `AI_REVIEW_SUMMARY_AUTOPOST` default is off
+- `pull-requests: write` exists only in the summary post job
+- merge-base PR diff resolution is verified on a canary PR
+- summary upsert patches the same marker comment on synchronize
 
 ## Branch and PR Hygiene
 

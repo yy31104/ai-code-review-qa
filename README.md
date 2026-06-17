@@ -22,6 +22,7 @@ Modern teams need fast feedback before code reaches human reviewers. This tool h
 - Anchored findings with file, line, category, severity, confidence, and message fields
 - Dry-run GitHub review payload JSON generation for future PR comments
 - Manual, opt-in summary comment upsert for GitHub PRs
+- Same-repo PR summary workflow with merge-base diff resolution
 - GitHub-style HTML report generated with Jinja2
 - Local golden-case eval harness
 - Markdown/HTML eval summary artifacts
@@ -211,8 +212,7 @@ Dispatch this workflow from the target PR's head branch. In this manual stage, t
 
 Planned rollout:
 
-- current: manual summary-comment upsert
-- later: same-repo PR trigger
+- current: manual summary-comment upsert and same-repo PR summary workflow
 - later: inline comments after every line is re-validated against the diff index
 
 ## Eval Harness
@@ -268,6 +268,10 @@ In CI, GitHub Actions checks out the repository, installs backend dependencies, 
 
 The workflow in `.github/workflows/pr-comment.yml` is manual-only. Its build job uses `workflow_dispatch`, `contents: read`, demo mode, and uploads `reports/github/review.json` plus `reports/github/summary-comment.json` as artifacts. Its post job runs only when `post_summary` is explicitly `true`, requires `pull_number`, has `pull-requests: write`, and upserts the hidden-marker summary comment. It does not post inline comments and does not use `pull_request_target`.
 
+The workflow in `.github/workflows/pr-summary.yml` runs on same-repository pull requests to `main` for `opened`, `synchronize`, and `reopened` events. Fork PRs are skipped entirely: no checkout, no tests, no artifacts, and no comments. For same-repo PRs, the workflow resolves the true PR diff with `git merge-base` and generates the summary artifact from `<merge-base>..<head>`.
+
+Automatic summary posting is off by default. Set the repository variable `AI_REVIEW_SUMMARY_AUTOPOST=true` to let the post job upsert one marker-based PR summary comment. The workflow remains summary-only and does not post inline comments.
+
 The workflow in `.github/workflows/evals.yml` runs the eval harness on:
 
 - pull request to `main`
@@ -311,6 +315,7 @@ Complete MVP:
 - HTML report generation works locally and in CI
 - dry-run GitHub review payload generation works locally and in a manual CI workflow
 - manual opt-in PR summary comment upsert is available
+- same-repo PR summary artifacts use merge-base diff resolution
 - optional OpenAI-powered structured review output is supported when configured
 - committed sample and eval artifacts run in deterministic demo mode without credentials
 - report verdicts are derived from risk and automated test status
@@ -320,7 +325,7 @@ Complete MVP:
 
 ## Future Improvements
 
-- GitHub PR diff support
+- inline GitHub PR comments
 - richer prompt evaluation and reviewer tuning
 - React dashboard
 - ASP.NET Core API
