@@ -6,6 +6,7 @@ from textwrap import dedent
 
 from dotenv import load_dotenv
 
+from diff_index import parse_unified_diff, resolve_anchor
 from schemas import Finding, ReviewResult, TestResult
 
 
@@ -33,7 +34,6 @@ RISKY_TERMS = {
 # camelCase/PascalCase boundaries before lowercasing, so "authToken" yields
 # {"auth", "token"} while "author" and "tokenizer" stay single tokens.
 _IDENTIFIER_TOKEN_RE = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|[0-9]+")
-_HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
 
 def derive_decision(risk_level: str, test_result: TestResult) -> tuple[str, str]:
@@ -281,8 +281,8 @@ def _build_findings(
     suggested_test_cases: list[str],
     recommended_actions: list[str],
 ) -> list[Finding]:
+    diff_index = parse_unified_diff(diff)
     primary_file = _primary_changed_file(changed_files)
-    line = _first_added_line_for_file(diff, primary_file)
 
     possible_bug_severity = "medium" if risk_level in {"High", "Medium"} else "low"
     security_severity = "high" if risk_level == "High" else "medium"
@@ -292,7 +292,7 @@ def _build_findings(
         findings.append(
             Finding(
                 file=primary_file,
-                line=line,
+                line=resolve_anchor(diff_index, primary_file),
                 category="possible_bug",
                 severity=possible_bug_severity,
                 confidence=0.5,
@@ -304,7 +304,7 @@ def _build_findings(
         findings.append(
             Finding(
                 file=primary_file,
-                line=line,
+                line=resolve_anchor(diff_index, primary_file),
                 category="security_reliability",
                 severity=security_severity,
                 confidence=0.6,
@@ -316,7 +316,7 @@ def _build_findings(
         findings.append(
             Finding(
                 file=primary_file,
-                line=line,
+                line=resolve_anchor(diff_index, primary_file),
                 category="missing_test",
                 severity="low",
                 confidence=0.7,
@@ -357,37 +357,6 @@ def _primary_changed_file(changed_files: list[str]) -> str | None:
         return non_test_files[0]
     if changed_files:
         return changed_files[0]
-    return None
-
-
-def _first_added_line_for_file(diff: str, primary_file: str | None) -> int | None:
-    if not diff or not primary_file:
-        return None
-
-    current_file: str | None = None
-    for line in diff.splitlines():
-        if line.startswith("+++ "):
-            path = line[4:].strip()
-            if path.startswith("b/"):
-                current_file = path[2:]
-            elif path == "/dev/null":
-                current_file = None
-            else:
-                current_file = path
-            continue
-
-        if current_file != primary_file:
-            continue
-
-        match = _HUNK_HEADER_RE.match(line)
-        if not match:
-            continue
-
-        added_count = match.group(2)
-        if added_count is not None and int(added_count) == 0:
-            continue
-        return int(match.group(1))
-
     return None
 
 

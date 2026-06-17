@@ -30,7 +30,7 @@ Modern teams need fast feedback before code reaches human reviewers. This tool h
 A three-PR production-upgrade phase added a deterministic regression baseline around the review engine so behavior changes are caught before they ship:
 
 - Deterministic, offline eval harness that runs without API keys
-- 23 hand-reviewed golden cases covering risk, missing-test, and false-positive behavior
+- 25 hand-reviewed golden cases covering risk, missing-test, false-positive, and anchor-position behavior
 - Pytest coverage for the harness, prediction seam, risk tokenization, review decision rules, and report verdict rendering
 - A `predict(case) -> ReviewResult` seam that grades cases through the public `review_diff()` path in forced demo mode
 - False-positive guards for lookalike terms such as `author`, `tokenizer`, and `deleted-at`/docs-only payment wording
@@ -136,6 +136,8 @@ Tests that were not detected do not increase severity by themselves. Every verdi
 
 Review output includes an additive `findings` list alongside the existing human-readable string fields. Each finding can carry a file path, optional line number, category, severity, confidence score, and message.
 
+When a unified diff can be validated, anchored findings use true added-line anchors from the right side of the diff. Findings that cannot be safely anchored remain file-level or summary-routed for future reporters.
+
 This structured format is the foundation for future inline PR comments. The current version renders anchored findings in the HTML report but does not post GitHub comments yet.
 
 ## Security & Trust
@@ -200,7 +202,7 @@ python evals/render_report.py \
   --html reports/evals/summary.html
 ```
 
-The 23-case seed dataset currently covers:
+The 25-case seed dataset currently covers:
 
 - authentication/token changes without tests
 - test-only changes that should stay low risk
@@ -209,6 +211,7 @@ The 23-case seed dataset currently covers:
 - risk terms inside camelCase/PascalCase identifiers
 - false-positive guards for nearby low-risk terms
 - empty-diff/untracked-file cases with limited line-level analysis
+- diff-validated anchored-finding line behavior
 
 ## Local Tests
 
