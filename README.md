@@ -21,6 +21,7 @@ Modern teams need fast feedback before code reaches human reviewers. This tool h
 - Deterministic review decision derived from risk level and automated test status
 - Anchored findings with file, line, category, severity, confidence, and message fields
 - Dry-run GitHub review payload JSON generation for future PR comments
+- Dry-run inline review payload artifact with fingerprints and a conservative hard cap
 - Manual, opt-in summary comment upsert for GitHub PRs
 - Same-repo PR summary workflow with merge-base diff resolution
 - GitHub-style HTML report generated with Jinja2
@@ -186,7 +187,7 @@ Both modes will:
 - derive a deterministic review decision from risk and test status
 - generate an HTML review report
 
-### GitHub Review Payload And Summary Comment
+### GitHub Review Payload, Inline Payload, And Summary Comment
 
 Generate a local GitHub create-review payload JSON without posting comments:
 
@@ -196,10 +197,15 @@ AI_REVIEW_MODE=demo python backend/app/main.py \
   --output backend/reports/review_report.html \
   --emit-github-review reports/github/review.json \
   --emit-summary-comment reports/github/summary-comment.json \
+  --emit-inline-review reports/github/inline-review.json \
   --head-sha HEAD_SHA
 ```
 
 The review payload includes a summary body and any findings that can be safely validated against true right-side diff lines. Findings that cannot be safely posted inline remain summary-routed. The summary comment artifact contains only `{ "body": "..." }` with the hidden summary marker used for upsert.
+
+The inline review payload is a dry-run artifact only. It embeds stable finding fingerprints, caps inline candidates at 5 comments, and only allows High or Medium findings with confidence >= 0.5 after line validation through `DiffIndex`. `suggested_test`, `recommended_action`, low-confidence, low/info, overflow, or unanchorable findings stay in the summary body. Inline comments are not posted yet; future posting will require a separate `AI_REVIEW_INLINE_COMMENTS` opt-in gate and must revalidate every line before calling GitHub.
+
+Summary comments continue independently from the inline payload. The summary flow can create or patch one marker-based top-level PR conversation comment; it still does not post inline comments.
 
 The default workflow behavior is dry-run artifact generation only. Summary posting is manual and opt-in through `.github/workflows/pr-comment.yml`:
 
@@ -213,7 +219,8 @@ Dispatch this workflow from the target PR's head branch. In this manual stage, t
 Planned rollout:
 
 - current: manual summary-comment upsert and same-repo PR summary workflow
-- later: inline comments after every line is re-validated against the diff index
+- current: inline review payload dry-run artifact with fingerprints, routing, and skip-existing foundations
+- later: inline comments after every line is re-validated against the diff index and `AI_REVIEW_INLINE_COMMENTS` is implemented
 
 ## Eval Harness
 
@@ -268,9 +275,9 @@ In CI, GitHub Actions checks out the repository, installs backend dependencies, 
 
 The workflow in `.github/workflows/pr-comment.yml` is manual-only. Its build job uses `workflow_dispatch`, `contents: read`, demo mode, and uploads `reports/github/review.json` plus `reports/github/summary-comment.json` as artifacts. Its post job runs only when `post_summary` is explicitly `true`, requires `pull_number`, has `pull-requests: write`, and upserts the hidden-marker summary comment. It does not post inline comments and does not use `pull_request_target`.
 
-The workflow in `.github/workflows/pr-summary.yml` runs on same-repository pull requests to `main` for `opened`, `synchronize`, and `reopened` events. Fork PRs are skipped entirely: no checkout, no tests, no artifacts, and no comments. For same-repo PRs, the workflow resolves the true PR diff with `git merge-base` and generates the summary artifact from `<merge-base>..<head>`.
+The workflow in `.github/workflows/pr-summary.yml` runs on same-repository pull requests to `main` for `opened`, `synchronize`, and `reopened` events. Fork PRs are skipped entirely: no checkout, no tests, no artifacts, and no comments. For same-repo PRs, the workflow resolves the true PR diff with `git merge-base` and generates the summary artifact plus a dry-run inline review payload from `<merge-base>..<head>`.
 
-Automatic summary posting is off by default. Set the repository variable `AI_REVIEW_SUMMARY_AUTOPOST=true` to let the post job upsert one marker-based PR summary comment. The workflow remains summary-only and does not post inline comments.
+Automatic summary posting is off by default. Set the repository variable `AI_REVIEW_SUMMARY_AUTOPOST=true` to let the post job upsert one marker-based PR summary comment. The workflow remains summary-only and does not post inline comments. The inline payload is uploaded as an artifact only, and no inline `pull-requests: write` behavior is added.
 
 The workflow in `.github/workflows/evals.yml` runs the eval harness on:
 
@@ -314,6 +321,7 @@ Complete MVP:
 - automated tests run successfully
 - HTML report generation works locally and in CI
 - dry-run GitHub review payload generation works locally and in a manual CI workflow
+- dry-run inline review payload generation works locally and in the same-repo PR summary workflow
 - manual opt-in PR summary comment upsert is available
 - same-repo PR summary artifacts use merge-base diff resolution
 - optional OpenAI-powered structured review output is supported when configured

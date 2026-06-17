@@ -40,6 +40,12 @@ git diff --check
 - `pull-requests: write` exists only in the summary post job
 - merge-base PR diff resolution is verified on a canary PR
 - summary upsert patches the same marker comment on synchronize
+- inline review payload artifact is generated when requested
+- `AI_REVIEW_INLINE_COMMENTS` is not implemented or enabled yet
+- inline hard cap and finding fingerprint tests pass
+- inline payload remains artifact-only; no inline posting step exists
+- every future inline posting path must revalidate lines against `DiffIndex`
+- same-repo PR workflows continue to avoid `pull_request_target`
 
 ## Branch and PR Hygiene
 
