@@ -9,6 +9,31 @@
     <p class="empty">None reported.</p>
   {% endif %}
 {%- endmacro %}
+{% set decision_styles = {
+  "needs_human_review": {
+    "badge": "badge-needs-review",
+    "icon_class": "decision-icon-high",
+    "icon": "!",
+    "label": "Needs Human Review",
+  },
+  "review_recommended": {
+    "badge": "badge-conditional",
+    "icon_class": "decision-icon-medium",
+    "icon": "~",
+    "label": "Review Recommended",
+  },
+  "looks_good": {
+    "badge": "badge-lgtm",
+    "icon_class": "decision-icon-low",
+    "icon": "&#10003;",
+    "label": "Looks Good - Verify & Merge",
+  },
+} %}
+{% set decision_key = review.review_decision | default("needs_human_review") %}
+{% set decision = decision_styles.get(decision_key, decision_styles["needs_human_review"]) %}
+{% macro decision_badge(decision, style="") -%}
+  <span class="badge {{ decision.badge }}"{% if style %} style="{{ style }}"{% endif %}>Decision: {{ decision.label }}</span>
+{%- endmacro %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -417,7 +442,7 @@
         </p>
       </div>
       <div style="padding-top:4px;">
-        <span class="badge badge-needs-review" style="font-size:13px;padding:4px 12px;">&#9888; Decision: Needs Human Review</span>
+        {{ decision_badge(decision, "font-size:13px;padding:4px 12px;") }}
       </div>
     </div>
 
@@ -454,7 +479,7 @@
       <div class="stat-card">
         <div class="stat-label">Review Decision</div>
         <div class="stat-value-sm" style="margin-top:6px;">
-          <span class="badge badge-needs-review">Decision: Needs Human Review</span>
+          {{ decision_badge(decision) }}
         </div>
       </div>
     </div>
@@ -595,10 +620,10 @@
       <h2>Review Decision</h2>
       <div class="section-body">
         <div class="decision-block">
-          <div class="decision-icon decision-icon-high">!</div>
+          <div class="decision-icon {{ decision.icon_class }}" role="img" aria-label="{{ decision.label }} decision icon">{{ decision.icon | safe }}</div>
           <div class="decision-content">
             <h3>
-              <span class="badge badge-needs-review" style="font-size:13px;padding:3px 12px;">Decision: Needs Human Review</span>
+              {{ decision_badge(decision, "font-size:13px;padding:3px 12px;") }}
             </h3>
             <p><strong>Explanation:</strong> {{ review.human_review_decision }}</p>
           </div>

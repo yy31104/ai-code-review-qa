@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from git_diff_reader import read_git_diff
-from llm_reviewer import review_diff
+from llm_reviewer import derive_decision, review_diff
 from report_generator import generate_report
 from test_runner import run_tests
 
@@ -35,6 +35,10 @@ def main() -> int:
         test_result = run_tests(repo_path)
         review = review_diff(git_result.diff, git_result.changed_files)
         review.automated_test_results = test_result
+        review.review_decision, review.human_review_decision = derive_decision(
+            review.risk_level,
+            test_result,
+        )
 
         if git_result.error:
             review.recommended_actions.append(f"Git diff warning: {git_result.error}")

@@ -100,6 +100,15 @@ def _run_checks(review: ReviewResult, expected: dict[str, Any]) -> list[CheckRes
             )
         )
 
+    if "review_decision" in expected:
+        checks.append(
+            CheckResult(
+                name="review_decision",
+                passed=review.review_decision == expected["review_decision"],
+                detail=f"expected {expected['review_decision']!r}, got {review.review_decision!r}",
+            )
+        )
+
     min_counts = expected.get("min_counts", {})
     for field, minimum in min_counts.items():
         actual_value = getattr(review, field, [])

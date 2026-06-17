@@ -392,15 +392,13 @@
         <h1>AI Code Review Report</h1>
         <p class="subtitle">
           <span class="engine-label">AI review engine</span>
-            &nbsp;&middot;&nbsp;OpenAI
-              &nbsp;&middot;&nbsp;gpt-5.4-mini
-            &nbsp;&middot;&nbsp;OpenAI-powered structured review output
+            demo mode using structured AI review output
           &nbsp;&middot;&nbsp;
-          Generated <time>2026-05-12 09:58</time>
+          Generated <time>2026-06-17 16:03</time>
         </p>
       </div>
       <div style="padding-top:4px;">
-        <span class="badge badge-needs-review" style="font-size:13px;padding:4px 12px;">&#9888; Decision: Needs Human Review</span>
+        <span class="badge badge-needs-review" style="font-size:13px;padding:4px 12px;">Decision: Needs Human Review</span>
       </div>
     </div>
 
@@ -408,12 +406,12 @@
     <div class="summary-grid">
       <div class="stat-card">
         <div class="stat-label">Changed Files</div>
-        <div class="stat-value">5</div>
+        <div class="stat-value">12</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Risk Level</div>
         <div class="stat-value" style="font-size:16px;margin-top:4px;">
-          <span class="badge badge-medium">medium</span>
+          <span class="badge badge-high">High</span>
         </div>
       </div>
       <div class="stat-card">
@@ -424,11 +422,11 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">Possible Bugs</div>
-        <div class="stat-value">3</div>
+        <div class="stat-value">2</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Missing Tests</div>
-        <div class="stat-value">3</div>
+        <div class="stat-value">1</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Review Decision</div>
@@ -442,7 +440,7 @@
     <section class="section">
       <h2>Project Summary</h2>
       <div class="section-body">
-        <p>The change adds review metadata to the schema and renderers, and updates demo/OpenAI review paths to populate it. It also changes the default example model to gpt-5.4-mini and updates the HTML report/template to display engine details conditionally.</p>
+        <p>Reviewed 12 changed file(s) via the AI review engine. Running in demo mode using structured AI review output.</p>
       </div>
     </section>
 
@@ -450,15 +448,22 @@
     <section class="section">
       <h2>
         Changed Files
-        <span class="h2-count">5 file(s)</span>
+        <span class="h2-count">12 file(s)</span>
       </h2>
       <div class="section-body">
           <ul class="file-list">
-              <li>.env.example</li>
+              <li>.github/workflows/ai-review.yml</li>
+              <li>README.md</li>
               <li>backend/app/llm_reviewer.py</li>
+              <li>backend/app/main.py</li>
+              <li>backend/app/report_generator.py</li>
               <li>backend/app/schemas.py</li>
               <li>backend/reports/review_report.html</li>
               <li>backend/templates/report.html</li>
+              <li>evals/README.md</li>
+              <li>evals/data/golden_cases.jsonl</li>
+              <li>evals/run_local.py</li>
+              <li>tests/test_review_decision.py</li>
           </ul>
       </div>
     </section>
@@ -467,13 +472,12 @@
     <section class="section">
       <h2>
         Possible Bugs
-        <span class="h2-count">3 item(s)</span>
+        <span class="h2-count">2 item(s)</span>
       </h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>`ReviewResult` now requires `review_mode`/`review_model` fields to exist in parsed OpenAI/demo payloads; any older mock or API response lacking them will fail validation until all producers are updated.</li>
-        <li>The template only renders OpenAI details when `review.review_mode == &#34;openai&#34;`; if other modes are introduced later, the report may show misleading or incomplete engine info.</li>
-        <li>The generated report HTML appears to be manually edited and may drift from the template/source data, causing stale or inconsistent report content.</li>
+        <li>`ai-review.yml`: validate inputs at function boundaries - check for None, empty values, and unexpected types.</li>
+        <li>Error paths may fail silently; confirm each failure branch returns a descriptive message or raises a typed exception.</li>
     </ul>
 
       </div>
@@ -483,13 +487,11 @@
     <section class="section">
       <h2>
         Missing Tests
-        <span class="h2-count">3 item(s)</span>
+        <span class="h2-count">1 item(s)</span>
       </h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>No tests verify that demo mode still returns a valid `ReviewResult` after adding the new schema fields.</li>
-        <li>No tests verify the OpenAI path sets `review_mode=&#34;openai&#34;` and `review_model=model` correctly.</li>
-        <li>No tests verify the report template renders the engine/model subtitle correctly for both demo and OpenAI modes.</li>
+        <li>Boundary-value coverage is missing: add tests for min/max inputs, empty collections, and off-by-one conditions.</li>
     </ul>
 
       </div>
@@ -500,9 +502,9 @@
       <h2>Suggested Test Cases</h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>Call `_demo_review()` and assert the returned schema includes `review_mode=&#34;demo&#34;` and `review_model is None`.</li>
-        <li>Mock a successful OpenAI parse response and assert `_review_with_openai()` stamps `review_mode=&#34;openai&#34;` and the configured model name.</li>
-        <li>Render `backend/templates/report.html` with demo and OpenAI review objects and assert the subtitle content changes as expected.</li>
+        <li>Happy-path: call the primary function in `ai-review.yml` with valid inputs and assert the expected return value.</li>
+        <li>Invalid-input: pass None, an empty string, or an out-of-range value and assert a clear error is raised.</li>
+        <li>Regression: add a test that pins any behavior this change is specifically intended to fix or improve.</li>
     </ul>
 
       </div>
@@ -513,9 +515,8 @@
       <h2>Security &amp; Reliability Concerns</h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>If `review_mode`/`review_model` are not populated consistently across all review producers, parsing failures could push users into fallback or break report generation.</li>
-        <li>The report now exposes the model name in generated output, which is fine operationally but should be considered if reports are shared externally.</li>
-        <li>Changing the default example model in `.env.example` may cause users to select an unavailable or unsupported model if their OpenAI account does not have access to it.</li>
+        <li>Do not log secrets, tokens, or user-identifiable data - scrub sensitive fields before writing to any log sink.</li>
+        <li>Wrap subprocess calls and external I/O in try/except to prevent unhandled exceptions from crashing the process.</li>
     </ul>
 
       </div>
@@ -531,7 +532,7 @@
             <span class="badge badge-pass">&#10003; Passed</span>
           <span>
             <strong>python</strong>
-              &mdash; 2 passed in 0.01s
+              &mdash; 20 passed in 0.81s
           </span>
         </div>
 
@@ -554,17 +555,19 @@
 
           <details>
             <summary>View full test output</summary>
-            <pre>============================= test session starts =============================
-platform win32 -- Python 3.11.9, pytest-9.0.2, pluggy-1.6.0
-rootdir: &lt;repo&gt;/sample-projects/python-demo
-configfile: pytest.ini
-testpaths: tests
-plugins: anyio-4.13.0
-collected 2 items
-
-tests/test_calculator.py ..                                              [100%]
-
-============================== 2 passed in 0.01s ==============================</pre>
+            <pre>============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.0.2, pluggy-1.6.0
+rootdir: &lt;repo&gt;
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.13.0
+collected 20 items
+
+tests/test_eval_harness.py ....                                          [ 20%]
+tests/test_review_decision.py ..........                                 [ 70%]
+tests/test_risk_estimation.py ......                                     [100%]
+
+============================= 20 passed in 0.81s ==============================</pre>
           </details>
 
       </div>
@@ -575,10 +578,9 @@ tests/test_calculator.py ..                                              [100%]
       <h2>Recommended Actions</h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>Verify every code path that constructs `ReviewResult` now sets `review_mode` and `review_model` appropriately.</li>
-        <li>Add regression tests for demo fallback, OpenAI success, and template rendering.</li>
-        <li>Confirm the new default model string in `.env.example` is supported by your deployment environment.</li>
-        <li>Avoid relying on the hand-edited generated report as a source of truth; regenerate it from templates/data instead.</li>
+        <li>Address the possible bugs listed above before requesting a final review.</li>
+        <li>Ensure all automated tests pass in CI before merging.</li>
+        <li>Expand test coverage around the highest-risk code paths identified in this report.</li>
     </ul>
 
       </div>
@@ -589,12 +591,12 @@ tests/test_calculator.py ..                                              [100%]
       <h2>Review Decision</h2>
       <div class="section-body">
         <div class="decision-block">
-          <div class="decision-icon decision-icon-high">!</div>
+          <div class="decision-icon decision-icon-high" role="img" aria-label="Needs Human Review decision icon">!</div>
           <div class="decision-content">
             <h3>
               <span class="badge badge-needs-review" style="font-size:13px;padding:3px 12px;">Decision: Needs Human Review</span>
             </h3>
-            <p><strong>Explanation:</strong> AI findings and automated test results should be reviewed by a developer before merging.</p>
+            <p><strong>Explanation:</strong> High-risk changes should receive human review; a developer should inspect the AI findings and automated test results before merging.</p>
           </div>
         </div>
       </div>

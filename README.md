@@ -2,7 +2,7 @@
 
 A portfolio-ready MVP for automated code review and QA reporting. The tool reads Git changes, runs automated tests, generates structured AI review feedback, validates the result with Pydantic, and outputs a clean HTML report.
 
-This project is positioned for Junior AI Engineer and AI Automation Engineer roles. It supports demo mode by default and optional OpenAI-powered structured review mode when an API key is configured. The current portfolio version demonstrates OpenAI-powered review output with Pydantic validation and fallback to demo mode.
+This project is positioned for Junior AI Engineer and AI Automation Engineer roles. It supports demo mode by default and optional OpenAI-powered structured review mode when an API key is configured. The committed sample report and eval path use deterministic, credential-free demo mode; OpenAI mode remains optional and config-gated.
 
 ## Why This Is Useful
 
@@ -16,6 +16,7 @@ Modern teams need fast feedback before code reaches human reviewers. This tool h
 - Git working-tree and commit-range diff support
 - Automatic test command detection for Python, Node.js, and .NET projects
 - Automated test execution
+- Deterministic review decision derived from risk level and automated test status
 - GitHub-style HTML report generated with Jinja2
 - Local golden-case eval harness
 - Markdown/HTML eval summary artifacts
@@ -27,10 +28,11 @@ A three-PR production-upgrade phase added a deterministic regression baseline ar
 
 - Deterministic, offline eval harness that runs without API keys
 - 23 hand-reviewed golden cases covering risk, missing-test, and false-positive behavior
-- 10 pytest tests covering the harness, the prediction seam, and risk tokenization
+- Pytest coverage for the harness, prediction seam, risk tokenization, review decision rules, and report verdict rendering
 - A `predict(case) -> ReviewResult` seam that grades cases through the public `review_diff()` path in forced demo mode
 - False-positive guards for lookalike terms such as `author`, `tokenizer`, and `deleted-at`/docs-only payment wording
 - camelCase/PascalCase risk-term support (e.g. `authToken`, `deleteUser`, `runSql`, `PaymentProcessor`)
+- Deterministic report verdicts that distinguish `needs_human_review`, `review_recommended`, and `looks_good`
 - GitHub Actions `eval-report` artifact (results JSON plus Markdown/HTML summaries) on PRs, pushes, and nightly runs
 - Demo mode remains credential-free; OpenAI mode stays optional and config-gated
 
@@ -39,6 +41,8 @@ See [docs/portfolio-engineering-summary.md](docs/portfolio-engineering-summary.m
 ## Sample Report Screenshot
 
 ![AI Code Review Report](docs/screenshots/report-preview.png)
+
+The screenshot is illustrative; the committed HTML sample report is regenerated from the current deterministic demo-mode workflow.
 
 ## Architecture / Workflow
 
@@ -115,6 +119,16 @@ OPENAI_MODEL=gpt-5.4-mini
 
 When `AI_REVIEW_MODE=openai`, the CLI sends the git diff and changed files to the OpenAI Responses API and validates the structured JSON response against the existing Pydantic `ReviewResult` schema. If the API key is missing, the API call fails, or the model response cannot be validated, the tool falls back to demo mode and includes a warning in the report summary. API keys are loaded from `.env` and should never be committed.
 
+## Review Decision
+
+The HTML report verdict is deterministic and test-aware. After automated checks run, the CLI derives `review_decision` from `risk_level` and `automated_test_results`:
+
+- failed tests with a detected command, or High risk: `needs_human_review`
+- Medium risk with passing or not-run tests: `review_recommended`
+- Low risk with passing or not-run tests: `looks_good`
+
+Tests that were not detected do not increase severity by themselves. Every verdict keeps a human-in-the-loop explanation so the report helps decide what to verify before merging.
+
 ## CLI Usage
 
 ### Local Working-Tree Review
@@ -142,6 +156,7 @@ Both modes will:
 - inspect Git changes for the target project
 - detect and run the appropriate test command
 - create structured review output using demo or OpenAI mode
+- derive a deterministic review decision from risk and test status
 - generate an HTML review report
 
 ## Eval Harness
@@ -182,6 +197,7 @@ python -m pytest -q
 ```
 
 The tests cover the eval dataset loader, local eval CLI, and report rendering command.
+They also cover risk estimation, review decision derivation, and the report verdict badge.
 
 ## GitHub Actions CI Usage
 
@@ -221,9 +237,9 @@ It includes:
 - security and reliability concerns
 - automated test results
 - recommended actions
-- human review decision
+- deterministic review decision and human-review explanation
 
-The committed report is included as a sample portfolio artifact.
+The committed report is included as a sample portfolio artifact generated in deterministic demo mode.
 
 ## Current MVP Status
 
@@ -233,7 +249,9 @@ Complete MVP:
 - sample Python project is included
 - automated tests run successfully
 - HTML report generation works locally and in CI
-- current portfolio report demonstrates OpenAI-powered structured review output
+- optional OpenAI-powered structured review output is supported when configured
+- committed sample and eval artifacts run in deterministic demo mode without credentials
+- report verdicts are derived from risk and automated test status
 - demo fallback remains available for local and CI-safe execution
 - first deterministic eval harness baseline is implemented
 - GitHub Actions eval workflow is available for PR/manual/nightly runs
