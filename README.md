@@ -4,6 +4,8 @@ A portfolio-ready MVP for automated code review and QA reporting. The tool reads
 
 This project is positioned for Junior AI Engineer and AI Automation Engineer roles. It supports demo mode by default and optional OpenAI-powered structured review mode when an API key is configured. The committed sample report and eval path use deterministic, credential-free demo mode; OpenAI mode remains optional and config-gated.
 
+Released under the [MIT License](LICENSE).
+
 ## Why This Is Useful
 
 Modern teams need fast feedback before code reaches human reviewers. This tool helps by combining diff analysis, automated test execution, structured AI review notes, and a shareable HTML report. It can run safely in demo mode without credentials, or use OpenAI mode for real structured review output while keeping a demo fallback if the API call or validation fails.
@@ -128,6 +130,19 @@ The HTML report verdict is deterministic and test-aware. After automated checks 
 - Low risk with passing or not-run tests: `looks_good`
 
 Tests that were not detected do not increase severity by themselves. Every verdict keeps a human-in-the-loop explanation so the report helps decide what to verify before merging.
+
+## Security & Trust
+
+The default demo path is deterministic and credential-free. Optional OpenAI mode is the main code-egress path: when enabled, the tool sends the changed-file list and truncated git diff to the OpenAI Responses API.
+
+Reports are local artifacts controlled by the user, and generated eval reports under `reports/evals/` are ignored by git. The `main` branch is protected by required GitHub Actions checks for evals and report generation.
+
+Trust and governance docs:
+
+- [MIT License](LICENSE)
+- [Security Policy](SECURITY.md)
+- [Data Handling](docs/DATA_HANDLING.md)
+- [Release Checklist](docs/RELEASE_CHECKLIST.md)
 
 ## CLI Usage
 
