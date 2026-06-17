@@ -40,6 +40,8 @@ The PR comment workflow is manual-only. Its default build job runs with `content
 
 Posted summary comment bodies are passed to `gh api` with `--input` JSON files, not interpolated into shell commands.
 
+The same-repo PR summary workflow uses `pull_request`, not `pull_request_target`. It gates every job on `github.event.pull_request.head.repo.full_name == github.repository`, so fork PRs skip entirely and do not get checked out, tested, artifacted, or commented on. Its post job is additionally gated by `AI_REVIEW_SUMMARY_AUTOPOST == 'true'` and is the only job with `pull-requests: write`. No secrets are exposed to forks.
+
 ## Out of Scope
 
 - upstream dependency CVEs unless this project adds an unsafe integration or configuration

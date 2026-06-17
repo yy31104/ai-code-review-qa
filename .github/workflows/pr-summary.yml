@@ -1,0 +1,131 @@
+name: PR Summary Comment
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    branches:
+      - main
+
+jobs:
+  build:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve PR diff range
+        id: range
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          MERGE_BASE="$(git merge-base "$BASE_SHA" "$HEAD_SHA" || true)"
+          if [ -z "$MERGE_BASE" ]; then
+            echo "Could not resolve merge base for PR diff." >&2
+            exit 1
+          fi
+
+          echo "merge_base=$MERGE_BASE" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
+
+      - name: Build PR summary artifact
+        env:
+          AI_REVIEW_MODE: demo
+          MERGE_BASE: ${{ steps.range.outputs.merge_base }}
+          HEAD_SHA: ${{ steps.range.outputs.head_sha }}
+        run: |
+          python backend/app/main.py \
+            --repo . \
+            --base "$MERGE_BASE" \
+            --head "$HEAD_SHA" \
+            --head-sha "$HEAD_SHA" \
+            --output backend/reports/review_report.html \
+            --emit-summary-comment reports/github/summary-comment.json
+
+      - name: Upload PR summary artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: pr-summary-artifacts
+          path: |
+            backend/reports/review_report.html
+            reports/github/summary-comment.json
+          if-no-files-found: error
+
+  post:
+    needs: build
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && vars.AI_REVIEW_SUMMARY_AUTOPOST == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Download PR summary artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: pr-summary-artifacts
+          path: .
+
+      - name: List existing PR comments
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          mkdir -p reports/github
+          gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --paginate > reports/github/existing-comments.json
+
+      - name: Decide summary comment action
+        id: decide
+        run: |
+          decision="$(python backend/app/github_comment_upsert.py --comments reports/github/existing-comments.json)"
+          echo "$decision"
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+
+      - name: Create summary comment
+        if: ${{ steps.decide.outputs.decision == 'create' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh api --method POST \
+            "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --input reports/github/summary-comment.json
+
+      - name: Patch summary comment
+        if: ${{ startsWith(steps.decide.outputs.decision, 'patch ') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DECISION: ${{ steps.decide.outputs.decision }}
+        run: |
+          COMMENT_ID="${DECISION#patch }"
+          gh api --method PATCH \
+            "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
+            --input reports/github/summary-comment.json

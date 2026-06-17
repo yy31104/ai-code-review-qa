@@ -48,6 +48,8 @@ By default, the workflow posts nothing to GitHub. The build job is a manual arti
 
 When `post_summary` is explicitly set to `true`, the workflow uses the repository-scoped `GITHUB_TOKEN` to create or patch one PR summary comment. Summary comments are visible to repository collaborators; on public repositories, they are public. Comments may trigger GitHub notifications. No raw git diff is posted.
 
+For same-repository pull requests, `.github/workflows/pr-summary.yml` can generate one auto-updating summary comment when the repository variable `AI_REVIEW_SUMMARY_AUTOPOST` is set to `true`. Fork pull requests are skipped entirely. Summary comments are visible to repository collaborators; on public repositories, they are public. Comments may trigger GitHub notifications. The raw git diff is not posted.
+
 The no-store boundary still holds for this tool: it does not add a database, server-side history, telemetry, or hosted backend. GitHub stores comments that the user explicitly chooses to post.
 
 ## OpenAI Optional-Mode Boundary
