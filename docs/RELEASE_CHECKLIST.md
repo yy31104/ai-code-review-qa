@@ -37,15 +37,29 @@ git diff --check
 - same-repo PR summary workflow does not use `pull_request_target`
 - same-repo gate skips fork PRs entirely
 - `AI_REVIEW_SUMMARY_AUTOPOST` default is off
-- `pull-requests: write` exists only in the summary post job
+- `pull-requests: write` exists only in summary post and opt-in inline post jobs
 - merge-base PR diff resolution is verified on a canary PR
 - summary upsert patches the same marker comment on synchronize
 - inline review payload artifact is generated when requested
-- `AI_REVIEW_INLINE_COMMENTS` is not implemented or enabled yet
+- `AI_REVIEW_INLINE_COMMENTS` default is off
+- inline posting requires `AI_REVIEW_SUMMARY_AUTOPOST=true`
 - inline hard cap and finding fingerprint tests pass
-- inline payload remains artifact-only; no inline posting step exists
-- every future inline posting path must revalidate lines against `DiffIndex`
+- inline posting revalidates every line against `DiffIndex` before posting
+- inline posting skips existing fingerprints before create-review
+- GitHub create-review failures are non-fatal and fall back to summary-only
+- inline post job scopes permissions to `contents: read` and `pull-requests: write`
 - same-repo PR workflows continue to avoid `pull_request_target`
+
+## Inline Comment Canary
+
+- enable `AI_REVIEW_SUMMARY_AUTOPOST=true` on a same-repo test PR
+- enable `AI_REVIEW_INLINE_COMMENTS=true` only for the canary
+- verify the summary comment is present before inline posting
+- verify one create-review appears with capped inline comments
+- push another commit and verify duplicate inline comments are skipped by fingerprint
+- verify the summary comment remains present and patched
+- verify fork PRs skip
+- disable `AI_REVIEW_INLINE_COMMENTS` after the canary unless continuous inline posting is desired
 
 ## Branch and PR Hygiene
 
