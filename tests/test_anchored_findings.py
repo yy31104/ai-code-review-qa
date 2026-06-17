@@ -134,7 +134,7 @@ def test_realistic_hunk_diff_can_produce_line_anchor(monkeypatch: pytest.MonkeyP
 
     review = review_diff(diff, ["backend/app/auth.py"])
 
-    assert any(finding.file == "backend/app/auth.py" and finding.line == 10 for finding in review.findings)
+    assert any(finding.file == "backend/app/auth.py" and finding.line == 11 for finding in review.findings)
 
 
 def test_headerless_diff_falls_back_to_file_level(monkeypatch: pytest.MonkeyPatch) -> None:

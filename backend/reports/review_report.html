@@ -435,7 +435,7 @@
           <span class="engine-label">AI review engine</span>
             demo mode using structured AI review output
           &nbsp;&middot;&nbsp;
-          Generated <time>2026-06-17 20:50</time>
+          Generated <time>2026-06-17 21:55</time>
         </p>
       </div>
       <div style="padding-top:4px;">
@@ -447,7 +447,7 @@
     <div class="summary-grid">
       <div class="stat-card">
         <div class="stat-label">Changed Files</div>
-        <div class="stat-value">8</div>
+        <div class="stat-value">9</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Risk Level</div>
@@ -481,7 +481,7 @@
     <section class="section">
       <h2>Project Summary</h2>
       <div class="section-body">
-        <p>Reviewed 8 changed file(s) via the AI review engine. Running in demo mode using structured AI review output.</p>
+        <p>Reviewed 9 changed file(s) via the AI review engine. Running in demo mode using structured AI review output.</p>
       </div>
     </section>
 
@@ -489,18 +489,19 @@
     <section class="section">
       <h2>
         Changed Files
-        <span class="h2-count">8 file(s)</span>
+        <span class="h2-count">9 file(s)</span>
       </h2>
       <div class="section-body">
           <ul class="file-list">
               <li>README.md</li>
+              <li>backend/app/diff_index.py</li>
               <li>backend/app/llm_reviewer.py</li>
-              <li>backend/app/schemas.py</li>
-              <li>backend/templates/report.html</li>
-              <li>docs/DATA_HANDLING.md</li>
+              <li>backend/reports/review_report.html</li>
               <li>evals/data/golden_cases.jsonl</li>
               <li>evals/run_local.py</li>
               <li>tests/test_anchored_findings.py</li>
+              <li>tests/test_diff_positioning.py</li>
+              <li>tests/test_eval_harness.py</li>
           </ul>
       </div>
     </section>
@@ -569,7 +570,7 @@
             <span class="badge badge-pass">&#10003; Passed</span>
           <span>
             <strong>python</strong>
-              &mdash; 33 passed in 0.88s
+              &mdash; 46 passed in 0.91s
           </span>
         </div>
 
@@ -598,14 +599,15 @@ rootdir: &lt;repo&gt;
 configfile: pytest.ini
 testpaths: tests
 plugins: anyio-4.13.0
-collected 33 items
+collected 46 items
 
-tests/test_anchored_findings.py .............                            [ 39%]
-tests/test_eval_harness.py ....                                          [ 51%]
-tests/test_review_decision.py ..........                                 [ 81%]
+tests/test_anchored_findings.py .............                            [ 28%]
+tests/test_diff_positioning.py .............                             [ 56%]
+tests/test_eval_harness.py ....                                          [ 65%]
+tests/test_review_decision.py ..........                                 [ 86%]
 tests/test_risk_estimation.py ......                                     [100%]
 
-============================= 33 passed in 0.88s ==============================</pre>
+============================= 46 passed in 0.91s ==============================</pre>
           </details>
 
       </div>
@@ -651,7 +653,7 @@ tests/test_risk_estimation.py ......                                     [100%]
               <li>
                 <div class="anchored-finding-meta">
                     <code>README.md</code>
-                  <span>line 19</span>
+                  <span>line 33</span>
                   <span>possible_bug</span>
                   <span class="badge badge-medium">medium</span>
                   <span>50% confidence</span>
@@ -661,7 +663,7 @@ tests/test_risk_estimation.py ......                                     [100%]
               <li>
                 <div class="anchored-finding-meta">
                     <code>README.md</code>
-                  <span>line 19</span>
+                  <span>line 33</span>
                   <span>possible_bug</span>
                   <span class="badge badge-medium">medium</span>
                   <span>50% confidence</span>
@@ -671,7 +673,7 @@ tests/test_risk_estimation.py ......                                     [100%]
               <li>
                 <div class="anchored-finding-meta">
                     <code>README.md</code>
-                  <span>line 19</span>
+                  <span>line 33</span>
                   <span>security_reliability</span>
                   <span class="badge badge-high">high</span>
                   <span>60% confidence</span>
@@ -681,7 +683,7 @@ tests/test_risk_estimation.py ......                                     [100%]
               <li>
                 <div class="anchored-finding-meta">
                     <code>README.md</code>
-                  <span>line 19</span>
+                  <span>line 33</span>
                   <span>security_reliability</span>
                   <span class="badge badge-high">high</span>
                   <span>60% confidence</span>
@@ -691,7 +693,7 @@ tests/test_risk_estimation.py ......                                     [100%]
               <li>
                 <div class="anchored-finding-meta">
                     <code>README.md</code>
-                  <span>line 19</span>
+                  <span>line 33</span>
                   <span>missing_test</span>
                   <span class="badge badge-low">low</span>
                   <span>70% confidence</span>

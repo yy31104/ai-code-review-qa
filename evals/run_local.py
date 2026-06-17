@@ -229,6 +229,26 @@ def _run_finding_checks(review: ReviewResult, expected: dict[str, Any]) -> list[
             )
         )
 
+    for anchor in expected.get("line_anchors", []):
+        file = str(anchor.get("file", ""))
+        line = int(anchor.get("line", 0))
+        category = anchor.get("category")
+        matching = [
+            finding
+            for finding in findings
+            if _finding_attr(finding, "file") == file
+            and _finding_attr(finding, "line") == line
+            and (category is None or _finding_attr(finding, "category") == category)
+        ]
+        checks.append(
+            CheckResult(
+                name=f"findings:line_anchor:{file}:{line}",
+                passed=bool(matching),
+                detail=f"expected finding at {file}:{line}"
+                + (f" with category {category!r}" if category else ""),
+            )
+        )
+
     return checks
 
 
