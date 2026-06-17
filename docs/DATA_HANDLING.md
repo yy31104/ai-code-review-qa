@@ -1,0 +1,53 @@
+# Data Handling
+
+## Overview
+
+`ai-code-review-qa` runs in deterministic demo mode by default. OpenAI-powered review mode is opt-in and requires explicit environment configuration.
+
+## No-Store Policy
+
+The project does not include a database, server-side history, telemetry, or hosted backend. Generated review reports are local files controlled by the user.
+
+The `reports/evals/` directory is gitignored and intended for ephemeral local or CI eval artifacts.
+
+## Network and Egress Boundary
+
+In demo mode, the review engine does not call OpenAI.
+
+The user-configured project test command may still do whatever that project does. This tool detects and runs supported test commands, but it does not control third-party test behavior, dependency behavior, or network access from the project under review.
+
+In OpenAI mode, the changed-file list and git diff are sent to the OpenAI Responses API. The diff payload is truncated by `MAX_DIFF_CHARS = 20000` in `backend/app/llm_reviewer.py`.
+
+## Secrets and Private-Code Boundaries
+
+`.env` is gitignored. `.env.example` ships an empty `OPENAI_API_KEY`.
+
+API keys are loaded at runtime and must not be printed to logs, reports, fixtures, or other committed artifacts.
+
+Do not run private or proprietary repositories in OpenAI mode without authorization. Do not commit reports generated from private code.
+
+## Report Artifact Safety
+
+The HTML report does not embed the raw git diff. It may include changed-file paths, structured findings, the review verdict, and sanitized test output.
+
+Test output path sanitization maps the repository root to `<repo>` and normalizes path separators.
+
+The committed sample report should be demo-mode and credential-free.
+
+## OpenAI Optional-Mode Boundary
+
+OpenAI mode is off by default. API, configuration, or schema-validation failures fall back to demo mode with a warning in the report summary.
+
+OpenAI output is validated with the Pydantic `ReviewResult` schema before report generation.
+
+This project does not control OpenAI data retention, account settings, or organization policy.
+
+## Practical Operator Checklist
+
+Before sharing generated reports, inspect them for:
+
+- sensitive paths
+- logs or stack traces
+- secrets or credentials
+- proprietary filenames or module names
+- private issue, PR, or customer context
