@@ -36,6 +36,7 @@ def test_cli_emits_github_review_payload_without_network(tmp_path: Path) -> None
 
     output_path = tmp_path / "report.html"
     payload_path = tmp_path / "reports" / "github" / "review.json"
+    summary_path = tmp_path / "reports" / "github" / "summary-comment.json"
     env = os.environ.copy()
     env["AI_REVIEW_MODE"] = "demo"
 
@@ -49,6 +50,8 @@ def test_cli_emits_github_review_payload_without_network(tmp_path: Path) -> None
             str(output_path),
             "--emit-github-review",
             str(payload_path),
+            "--emit-summary-comment",
+            str(summary_path),
             "--head-sha",
             "abc123",
         ],
@@ -62,12 +65,18 @@ def test_cli_emits_github_review_payload_without_network(tmp_path: Path) -> None
     assert completed.returncode == 0, completed.stderr
     assert output_path.exists()
     assert payload_path.exists()
+    assert summary_path.exists()
     payload = json.loads(payload_path.read_text(encoding="utf-8"))
     assert payload["event"] == "COMMENT"
     assert payload["commit_id"] == "abc123"
     assert isinstance(payload["body"], str)
     assert isinstance(payload["comments"], list)
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert list(summary) == ["body"]
+    assert isinstance(summary["body"], str)
+    assert "<!-- ai-code-review-qa:summary -->" in summary["body"]
     assert "GitHub review payload generated" in completed.stdout
+    assert "GitHub summary comment generated" in completed.stdout
 
 
 def _run(command: list[str], *, cwd: Path) -> None:

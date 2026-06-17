@@ -2,13 +2,25 @@ name: PR Comment Payload Dry Run
 
 on:
   workflow_dispatch:
-
-permissions:
-  contents: read
+    inputs:
+      post_summary:
+        description: "Whether to actually upsert the PR summary comment."
+        type: boolean
+        default: false
+      pull_number:
+        description: "PR number to comment on when post_summary is true."
+        type: string
+        required: false
+      head_sha:
+        description: "Optional commit SHA to include in dry-run payload metadata."
+        type: string
+        required: false
 
 jobs:
-  build-pr-comment-payload:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -26,21 +38,97 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r backend/requirements.txt
 
-      - name: Build dry-run review payload
+      - name: Build dry-run review artifacts
         env:
           AI_REVIEW_MODE: demo
+          INPUT_HEAD_SHA: ${{ inputs.head_sha }}
+          GITHUB_SHA_VALUE: ${{ github.sha }}
         run: |
+          HEAD_SHA="$INPUT_HEAD_SHA"
+          if [ -z "$HEAD_SHA" ]; then
+            HEAD_SHA="$GITHUB_SHA_VALUE"
+          fi
+
           python backend/app/main.py \
             --repo . \
             --base HEAD~1 \
             --head HEAD \
             --output backend/reports/review_report.html \
             --emit-github-review reports/github/review.json \
-            --head-sha "${{ github.sha }}"
+            --emit-summary-comment reports/github/summary-comment.json \
+            --head-sha "$HEAD_SHA"
 
-      - name: Upload dry-run review payload
+      - name: Upload dry-run review artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: github-review-payload
-          path: reports/github/review.json
+          name: github-review-artifacts
+          path: |
+            backend/reports/review_report.html
+            reports/github/review.json
+            reports/github/summary-comment.json
           if-no-files-found: error
+
+  post:
+    needs: build
+    if: ${{ inputs.post_summary == true }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Validate pull number
+        run: |
+          if [ -z "${{ inputs.pull_number }}" ]; then
+            echo "pull_number is required when post_summary is true." >&2
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Download dry-run review artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: github-review-artifacts
+          path: .
+
+      - name: List existing PR comments
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p reports/github
+          gh api "repos/${{ github.repository }}/issues/${{ inputs.pull_number }}/comments" \
+            --paginate > reports/github/existing-comments.json
+
+      - name: Decide summary comment action
+        id: decide
+        run: |
+          decision="$(python backend/app/github_comment_upsert.py --comments reports/github/existing-comments.json)"
+          echo "$decision"
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+
+      - name: Create summary comment
+        if: ${{ steps.decide.outputs.decision == 'create' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method POST \
+            "repos/${{ github.repository }}/issues/${{ inputs.pull_number }}/comments" \
+            --input reports/github/summary-comment.json
+
+      - name: Patch summary comment
+        if: ${{ startsWith(steps.decide.outputs.decision, 'patch ') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DECISION: ${{ steps.decide.outputs.decision }}
+        run: |
+          COMMENT_ID="${DECISION#patch }"
+          gh api --method PATCH \
+            "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
+            --input reports/github/summary-comment.json

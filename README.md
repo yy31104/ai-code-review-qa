@@ -21,6 +21,7 @@ Modern teams need fast feedback before code reaches human reviewers. This tool h
 - Deterministic review decision derived from risk level and automated test status
 - Anchored findings with file, line, category, severity, confidence, and message fields
 - Dry-run GitHub review payload JSON generation for future PR comments
+- Manual, opt-in summary comment upsert for GitHub PRs
 - GitHub-style HTML report generated with Jinja2
 - Local golden-case eval harness
 - Markdown/HTML eval summary artifacts
@@ -184,7 +185,7 @@ Both modes will:
 - derive a deterministic review decision from risk and test status
 - generate an HTML review report
 
-### GitHub Review Payload Dry Run
+### GitHub Review Payload And Summary Comment
 
 Generate a local GitHub create-review payload JSON without posting comments:
 
@@ -193,15 +194,25 @@ AI_REVIEW_MODE=demo python backend/app/main.py \
   --repo . \
   --output backend/reports/review_report.html \
   --emit-github-review reports/github/review.json \
+  --emit-summary-comment reports/github/summary-comment.json \
   --head-sha HEAD_SHA
 ```
 
-The payload includes a summary body and any findings that can be safely validated against true right-side diff lines. Findings that cannot be safely posted inline remain summary-routed. This stage only writes a local or CI artifact; it does not call GitHub and does not post comments.
+The review payload includes a summary body and any findings that can be safely validated against true right-side diff lines. Findings that cannot be safely posted inline remain summary-routed. The summary comment artifact contains only `{ "body": "..." }` with the hidden summary marker used for upsert.
+
+The default workflow behavior is dry-run artifact generation only. Summary posting is manual and opt-in through `.github/workflows/pr-comment.yml`:
+
+- `post_summary`: defaults to `false`
+- `pull_number`: required only when `post_summary` is `true`
+
+When `post_summary` is `true`, the workflow uses the GitHub issue-comments endpoint to create or patch the marker-based PR summary comment. It still does not post inline comments.
+
+Dispatch this workflow from the target PR's head branch. In this manual stage, the generated summary reflects the selected workflow ref's `HEAD~1..HEAD` range, not the full PR `base..head` diff. Full PR diff resolution is planned for the future pull_request-triggered workflow.
 
 Planned rollout:
 
-- current: dry-run payload artifact only
-- next: summary comment
+- current: manual summary-comment upsert
+- later: same-repo PR trigger
 - later: inline comments after every line is re-validated against the diff index
 
 ## Eval Harness
@@ -255,7 +266,7 @@ The workflow in `.github/workflows/ai-review.yml` runs on:
 
 In CI, GitHub Actions checks out the repository, installs backend dependencies, runs the CLI with `--base HEAD~1 --head HEAD`, and uploads the generated report as an artifact named `review-report`.
 
-The workflow in `.github/workflows/pr-comment.yml` is a manual dry run only. It uses `workflow_dispatch`, `contents: read`, demo mode, and uploads `reports/github/review.json` as an artifact. It does not request `pull-requests: write` and does not post comments.
+The workflow in `.github/workflows/pr-comment.yml` is manual-only. Its build job uses `workflow_dispatch`, `contents: read`, demo mode, and uploads `reports/github/review.json` plus `reports/github/summary-comment.json` as artifacts. Its post job runs only when `post_summary` is explicitly `true`, requires `pull_number`, has `pull-requests: write`, and upserts the hidden-marker summary comment. It does not post inline comments and does not use `pull_request_target`.
 
 The workflow in `.github/workflows/evals.yml` runs the eval harness on:
 
@@ -299,6 +310,7 @@ Complete MVP:
 - automated tests run successfully
 - HTML report generation works locally and in CI
 - dry-run GitHub review payload generation works locally and in a manual CI workflow
+- manual opt-in PR summary comment upsert is available
 - optional OpenAI-powered structured review output is supported when configured
 - committed sample and eval artifacts run in deterministic demo mode without credentials
 - report verdicts are derived from risk and automated test status

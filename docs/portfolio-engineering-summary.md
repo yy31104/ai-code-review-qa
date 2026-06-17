@@ -84,7 +84,7 @@ Generated files under `reports/evals/` are gitignored and should stay uncommitte
 ## Limitations (Honest Scope)
 
 - This is a **deterministic regression baseline, not a full model-quality benchmark.** It pins the demo engine's behavior; it does not score answer quality.
-- It is **not yet a GitHub App** and **does not post PR comments.**
+- It is **not yet a GitHub App** and does not post inline comments or run automatic PR-triggered commenting; it supports a manual, opt-in summary-comment upsert workflow.
 - It **does not measure real developer comment acceptance rate** or any human-feedback metric.
 - The demo risk heuristic is intentionally simple; risk terms fused into a single lowercase run (e.g. `authtoken`) are not split, and the engine is not a security scanner.
 - **OpenAI mode is optional and config-gated** — it is never required to run tests or evals.
@@ -98,4 +98,4 @@ Generated files under `reports/evals/` are gitignored and should stay uncommitte
 
 ## How I Would Explain This Project in an Interview
 
-"It's an AI-assisted code-review tool, but the part I'm proud of is the engineering around the AI, not just the AI call. The review engine runs deterministically and offline by default, and I wrapped it in an eval harness with 23 hand-reviewed golden cases and 10 tests that run in CI as a gate. I added a `predict()` seam so the evals grade the real public review path, then used that harness to make a deliberate precision/recall change — detecting risk terms inside camelCase identifiers like `authToken` while keeping lookalikes like `author` from triggering false positives — with golden cases that lock both behaviors. I kept scope honest: it's a regression baseline, not a model-quality benchmark, it's not a GitHub App yet, and the paid model path is optional and gated."
+"It's an AI-assisted code-review tool, but the part I'm proud of is the engineering around the AI, not just the AI call. The review engine runs deterministically and offline by default, and I wrapped it in an eval harness with 25 hand-reviewed golden cases and CI tests that run as a gate. I added a `predict()` seam so the evals grade the real public review path, then used that harness to make a deliberate precision/recall change — detecting risk terms inside camelCase identifiers like `authToken` while keeping lookalikes like `author` from triggering false positives — with golden cases that lock both behaviors. I kept scope honest: it's a regression baseline, not a model-quality benchmark, it's not a GitHub App yet, and the paid model path is optional and gated."

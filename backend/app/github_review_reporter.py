@@ -7,10 +7,13 @@ from pathlib import Path
 from typing import Any
 
 from diff_index import DiffIndex
+try:
+    from github_constants import SUMMARY_MARKER
+except ImportError:  # pragma: no cover - package import fallback
+    from .github_constants import SUMMARY_MARKER
 from schemas import Finding, ReviewResult
 
 
-SUMMARY_MARKER = "<!-- ai-code-review-qa:summary -->"
 MAX_MESSAGE_CHARS = 1000
 _TRUNCATION_MARKER = " ... (truncated)"
 _SUMMARY_ONLY_CATEGORIES = {"suggested_test", "recommended_action"}
@@ -22,6 +25,7 @@ def escape_markdown(text: str) -> str:
     value = str(text)
     value = value.replace("\r\n", "\n").replace("\r", "\n")
     value = re.sub(r"\s*\n\s*", " ", value).strip()
+    value = _neutralize_leading_markdown(value)
     value = value.replace("](", "]\\(")
     value = value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
@@ -55,14 +59,7 @@ def build_review_payload(
     head_sha: str | None = None,
 ) -> dict[str, Any]:
     """Build a GitHub create-review request payload without posting it."""
-    inline_findings: list[Finding] = []
-    summary_findings: list[Finding] = []
-
-    for finding in review.findings:
-        if is_commentable(diff_index, finding):
-            inline_findings.append(finding)
-        else:
-            summary_findings.append(finding)
+    inline_findings, _ = _partition_findings(review, diff_index)
 
     comments = [
         {
@@ -76,13 +73,19 @@ def build_review_payload(
 
     payload: dict[str, Any] = {
         "event": "COMMENT",
-        "body": _summary_body(review, summary_findings, inline_count=len(comments)),
+        "body": build_summary_comment_body(review, diff_index),
         "comments": comments,
     }
     if head_sha is not None:
         payload["commit_id"] = head_sha
 
     return payload
+
+
+def build_summary_comment_body(review: ReviewResult, diff_index: DiffIndex) -> str:
+    """Build the marker-based summary comment body used by dry-run and posting flows."""
+    inline_findings, summary_findings = _partition_findings(review, diff_index)
+    return _summary_body(review, summary_findings, inline_count=len(inline_findings))
 
 
 def write_payload(payload: dict[str, Any], path: str | Path) -> Path:
@@ -141,6 +144,19 @@ def _summary_body(
     return "\n".join(lines)
 
 
+def _partition_findings(review: ReviewResult, diff_index: DiffIndex) -> tuple[list[Finding], list[Finding]]:
+    inline_findings: list[Finding] = []
+    summary_findings: list[Finding] = []
+
+    for finding in review.findings:
+        if is_commentable(diff_index, finding):
+            inline_findings.append(finding)
+        else:
+            summary_findings.append(finding)
+
+    return inline_findings, summary_findings
+
+
 def _test_status(review: ReviewResult) -> str:
     test_result = review.automated_test_results
     if not test_result.command.strip():
@@ -183,7 +199,26 @@ def _truncate_message(value: str) -> str:
         return value
 
     limit = MAX_MESSAGE_CHARS - len(_TRUNCATION_MARKER)
-    return f"{value[:limit].rstrip()}{_TRUNCATION_MARKER}"
+    truncated = value[:limit].rstrip()
+    truncated = _trim_unsafe_suffix(truncated)
+    return f"{truncated}{_TRUNCATION_MARKER}"
+
+
+def _neutralize_leading_markdown(value: str) -> str:
+    if re.match(r"^(?:#{1,6}(?:\s|$)|>|[-+](?:\s|$)|\d+[.)](?:\s|$))", value):
+        return f"\u200b{value}"
+    return value
+
+
+def _trim_unsafe_suffix(value: str) -> str:
+    while value.endswith("\\") or value.endswith(("@", "#")) or _has_partial_html_entity(value):
+        value = value[:-1].rstrip()
+    return value
+
+
+def _has_partial_html_entity(value: str) -> bool:
+    match = re.search(r"&[A-Za-z]{0,5}$", value)
+    return bool(match)
 
 
 def _normalize_path(path: str) -> str:
