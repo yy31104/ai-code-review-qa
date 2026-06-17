@@ -30,6 +30,8 @@ Do not run private or proprietary repositories in OpenAI mode without authorizat
 
 The HTML report does not embed the raw git diff. It may include changed-file paths, structured findings, the review verdict, and sanitized test output.
 
+Structured findings may include code-derived messages, file paths, line numbers, categories, severity, confidence, and verdict context. Finding messages are rendered through Jinja autoescaping in the HTML report.
+
 Test output path sanitization maps the repository root to `<repo>` and normalizes path separators.
 
 The committed sample report should be demo-mode and credential-free.

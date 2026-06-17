@@ -6,7 +6,7 @@ from textwrap import dedent
 
 from dotenv import load_dotenv
 
-from schemas import ReviewResult, TestResult
+from schemas import Finding, ReviewResult, TestResult
 
 
 DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
@@ -33,6 +33,7 @@ RISKY_TERMS = {
 # camelCase/PascalCase boundaries before lowercasing, so "authToken" yields
 # {"auth", "token"} while "author" and "tokenizer" stay single tokens.
 _IDENTIFIER_TOKEN_RE = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|[0-9]+")
+_HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
 
 def derive_decision(risk_level: str, test_result: TestResult) -> tuple[str, str]:
@@ -130,6 +131,14 @@ def _review_with_openai(diff: str, changed_files: list[str]) -> ReviewResult:
                     practical, and grounded in the provided git diff.
 
                     Set changed_files to the provided changed file list.
+                    Set findings to a concise list of structured finding
+                    objects. Each finding must include category, severity,
+                    confidence, message, side, and optional file/line when the
+                    finding can be tied to a changed file. Use side RIGHT for
+                    findings on added or modified code. Valid categories are
+                    possible_bug, security_reliability, missing_test,
+                    suggested_test, and recommended_action. Valid severities
+                    are info, low, medium, and high.
                     Set review_decision from risk_level before tests run:
                     High -> needs_human_review, Medium -> review_recommended,
                     Low -> looks_good.
@@ -205,6 +214,20 @@ def mock_review_json(diff: str, changed_files: list[str]) -> dict:
     missing_tests.append(
         "Boundary-value coverage is missing: add tests for min/max inputs, empty collections, and off-by-one conditions."
     )
+    suggested_test_cases = [
+        f"Happy-path: call the primary function in `{primary}` with valid inputs and assert the expected return value.",
+        "Invalid-input: pass None, an empty string, or an out-of-range value and assert a clear error is raised.",
+        "Regression: add a test that pins any behavior this change is specifically intended to fix or improve.",
+    ]
+    security_reliability_concerns = [
+        "Do not log secrets, tokens, or user-identifiable data - scrub sensitive fields before writing to any log sink.",
+        "Wrap subprocess calls and external I/O in try/except to prevent unhandled exceptions from crashing the process.",
+    ]
+    recommended_actions = [
+        "Address the possible bugs listed above before requesting a final review.",
+        "Ensure all automated tests pass in CI before merging.",
+        "Expand test coverage around the highest-risk code paths identified in this report.",
+    ]
 
     test_result = TestResult(
         project_type="not run",
@@ -217,6 +240,16 @@ def mock_review_json(diff: str, changed_files: list[str]) -> dict:
     )
     test_payload = test_result.model_dump() if hasattr(test_result, "model_dump") else test_result.dict()
     review_decision, human_review_decision = derive_decision(risk_level, test_result)
+    findings = _build_findings(
+        diff=diff,
+        changed_files=changed_files,
+        risk_level=risk_level,
+        possible_bugs=possible_bugs,
+        security_reliability_concerns=security_reliability_concerns,
+        missing_tests=missing_tests,
+        suggested_test_cases=suggested_test_cases,
+        recommended_actions=recommended_actions,
+    )
 
     return {
         "project_summary": summary,
@@ -224,24 +257,138 @@ def mock_review_json(diff: str, changed_files: list[str]) -> dict:
         "risk_level": risk_level,
         "possible_bugs": possible_bugs,
         "missing_tests": missing_tests,
-        "suggested_test_cases": [
-            f"Happy-path: call the primary function in `{primary}` with valid inputs and assert the expected return value.",
-            "Invalid-input: pass None, an empty string, or an out-of-range value and assert a clear error is raised.",
-            "Regression: add a test that pins any behavior this change is specifically intended to fix or improve.",
-        ],
-        "security_reliability_concerns": [
-            "Do not log secrets, tokens, or user-identifiable data - scrub sensitive fields before writing to any log sink.",
-            "Wrap subprocess calls and external I/O in try/except to prevent unhandled exceptions from crashing the process.",
+        "suggested_test_cases": suggested_test_cases,
+        "security_reliability_concerns": security_reliability_concerns,
+        "findings": [
+            finding.model_dump() if hasattr(finding, "model_dump") else finding.dict()
+            for finding in findings
         ],
         "automated_test_results": test_payload,
-        "recommended_actions": [
-            "Address the possible bugs listed above before requesting a final review.",
-            "Ensure all automated tests pass in CI before merging.",
-            "Expand test coverage around the highest-risk code paths identified in this report.",
-        ],
+        "recommended_actions": recommended_actions,
         "review_decision": review_decision,
         "human_review_decision": human_review_decision,
     }
+
+
+def _build_findings(
+    *,
+    diff: str,
+    changed_files: list[str],
+    risk_level: str,
+    possible_bugs: list[str],
+    security_reliability_concerns: list[str],
+    missing_tests: list[str],
+    suggested_test_cases: list[str],
+    recommended_actions: list[str],
+) -> list[Finding]:
+    primary_file = _primary_changed_file(changed_files)
+    line = _first_added_line_for_file(diff, primary_file)
+
+    possible_bug_severity = "medium" if risk_level in {"High", "Medium"} else "low"
+    security_severity = "high" if risk_level == "High" else "medium"
+    findings: list[Finding] = []
+
+    for message in possible_bugs:
+        findings.append(
+            Finding(
+                file=primary_file,
+                line=line,
+                category="possible_bug",
+                severity=possible_bug_severity,
+                confidence=0.5,
+                message=message,
+            )
+        )
+
+    for message in security_reliability_concerns:
+        findings.append(
+            Finding(
+                file=primary_file,
+                line=line,
+                category="security_reliability",
+                severity=security_severity,
+                confidence=0.6,
+                message=message,
+            )
+        )
+
+    for message in missing_tests:
+        findings.append(
+            Finding(
+                file=primary_file,
+                line=line,
+                category="missing_test",
+                severity="low",
+                confidence=0.7,
+                message=message,
+            )
+        )
+
+    for message in suggested_test_cases:
+        findings.append(
+            Finding(
+                file=None,
+                line=None,
+                category="suggested_test",
+                severity="info",
+                confidence=0.4,
+                message=message,
+            )
+        )
+
+    for message in recommended_actions:
+        findings.append(
+            Finding(
+                file=None,
+                line=None,
+                category="recommended_action",
+                severity="info",
+                confidence=0.4,
+                message=message,
+            )
+        )
+
+    return findings
+
+
+def _primary_changed_file(changed_files: list[str]) -> str | None:
+    non_test_files = [path for path in changed_files if "test" not in path.lower()]
+    if non_test_files:
+        return non_test_files[0]
+    if changed_files:
+        return changed_files[0]
+    return None
+
+
+def _first_added_line_for_file(diff: str, primary_file: str | None) -> int | None:
+    if not diff or not primary_file:
+        return None
+
+    current_file: str | None = None
+    for line in diff.splitlines():
+        if line.startswith("+++ "):
+            path = line[4:].strip()
+            if path.startswith("b/"):
+                current_file = path[2:]
+            elif path == "/dev/null":
+                current_file = None
+            else:
+                current_file = path
+            continue
+
+        if current_file != primary_file:
+            continue
+
+        match = _HUNK_HEADER_RE.match(line)
+        if not match:
+            continue
+
+        added_count = match.group(2)
+        if added_count is not None and int(added_count) == 0:
+            continue
+        return int(match.group(1))
+
+    return None
 
 
 def _estimate_risk(diff: str, changed_files: list[str]) -> str:
