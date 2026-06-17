@@ -10,6 +10,8 @@ The project does not include a database, server-side history, telemetry, or host
 
 The `reports/evals/` directory is gitignored and intended for ephemeral local or CI eval artifacts.
 
+The `reports/github/` directory is also gitignored and intended for dry-run GitHub review payload artifacts controlled by the user.
+
 ## Network and Egress Boundary
 
 In demo mode, the review engine does not call OpenAI.
@@ -35,6 +37,16 @@ Structured findings may include code-derived messages, file paths, line numbers,
 Test output path sanitization maps the repository root to `<repo>` and normalizes path separators.
 
 The committed sample report should be demo-mode and credential-free.
+
+## GitHub Review Payload (Dry Run)
+
+The optional `--emit-github-review` CLI flag writes a local JSON payload shaped like a GitHub create-review request. The payload may contain finding messages, file paths, line numbers, category, severity, review verdict, risk level, and test status.
+
+The payload does not include the raw git diff. It is generated from the final `ReviewResult` plus a local `DiffIndex` so inline findings can be validated against true right-side diff lines before they are included as comments.
+
+This PR stage posts nothing to GitHub. The dry-run workflow is a manual artifact workflow, and the payload remains a local or CI artifact controlled by the user.
+
+Future PR-comment posting will make summary or inline review text visible to repository collaborators and may trigger GitHub notifications.
 
 ## OpenAI Optional-Mode Boundary
 

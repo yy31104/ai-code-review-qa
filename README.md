@@ -20,6 +20,7 @@ Modern teams need fast feedback before code reaches human reviewers. This tool h
 - Automated test execution
 - Deterministic review decision derived from risk level and automated test status
 - Anchored findings with file, line, category, severity, confidence, and message fields
+- Dry-run GitHub review payload JSON generation for future PR comments
 - GitHub-style HTML report generated with Jinja2
 - Local golden-case eval harness
 - Markdown/HTML eval summary artifacts
@@ -183,6 +184,26 @@ Both modes will:
 - derive a deterministic review decision from risk and test status
 - generate an HTML review report
 
+### GitHub Review Payload Dry Run
+
+Generate a local GitHub create-review payload JSON without posting comments:
+
+```bash
+AI_REVIEW_MODE=demo python backend/app/main.py \
+  --repo . \
+  --output backend/reports/review_report.html \
+  --emit-github-review reports/github/review.json \
+  --head-sha HEAD_SHA
+```
+
+The payload includes a summary body and any findings that can be safely validated against true right-side diff lines. Findings that cannot be safely posted inline remain summary-routed. This stage only writes a local or CI artifact; it does not call GitHub and does not post comments.
+
+Planned rollout:
+
+- current: dry-run payload artifact only
+- next: summary comment
+- later: inline comments after every line is re-validated against the diff index
+
 ## Eval Harness
 
 The local eval harness provides a deterministic regression baseline for the demo review engine. It is designed to run without API keys and to catch behavior drift before the project expands into PR comments, API service mode, or richer model comparisons.
@@ -234,6 +255,8 @@ The workflow in `.github/workflows/ai-review.yml` runs on:
 
 In CI, GitHub Actions checks out the repository, installs backend dependencies, runs the CLI with `--base HEAD~1 --head HEAD`, and uploads the generated report as an artifact named `review-report`.
 
+The workflow in `.github/workflows/pr-comment.yml` is a manual dry run only. It uses `workflow_dispatch`, `contents: read`, demo mode, and uploads `reports/github/review.json` as an artifact. It does not request `pull-requests: write` and does not post comments.
+
 The workflow in `.github/workflows/evals.yml` runs the eval harness on:
 
 - pull request to `main`
@@ -275,6 +298,7 @@ Complete MVP:
 - sample Python project is included
 - automated tests run successfully
 - HTML report generation works locally and in CI
+- dry-run GitHub review payload generation works locally and in a manual CI workflow
 - optional OpenAI-powered structured review output is supported when configured
 - committed sample and eval artifacts run in deterministic demo mode without credentials
 - report verdicts are derived from risk and automated test status

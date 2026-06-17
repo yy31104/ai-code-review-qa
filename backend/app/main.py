@@ -4,7 +4,9 @@ import argparse
 import sys
 from pathlib import Path
 
+from diff_index import parse_unified_diff
 from git_diff_reader import read_git_diff
+from github_review_reporter import build_review_payload, write_payload
 from llm_reviewer import derive_decision, review_diff
 from report_generator import generate_report
 from test_runner import run_tests
@@ -18,6 +20,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", required=True, help="Path for the generated HTML report.")
     parser.add_argument("--base", help="Base git ref for commit range diff. Use with --head.")
     parser.add_argument("--head", help="Head git ref for commit range diff. Use with --base.")
+    parser.add_argument("--emit-github-review", help="Optional path for a dry-run GitHub review payload JSON.")
+    parser.add_argument("--head-sha", help="Optional commit SHA to include in the dry-run GitHub review payload.")
 
     args = parser.parse_args()
     if bool(args.base) != bool(args.head):
@@ -29,6 +33,7 @@ def main() -> int:
     args = parse_args()
     repo_path = Path(args.repo).resolve()
     output_path = Path(args.output).resolve()
+    github_review_path = Path(args.emit_github_review).resolve() if args.emit_github_review else None
 
     try:
         git_result = read_git_diff(repo_path, base=args.base, head=args.head)
@@ -44,11 +49,18 @@ def main() -> int:
             review.recommended_actions.append(f"Git diff warning: {git_result.error}")
 
         report_path = generate_report(review, output_path)
+        emitted_payload_path = None
+        if github_review_path:
+            diff_index = parse_unified_diff(git_result.diff)
+            payload = build_review_payload(review, diff_index, head_sha=args.head_sha)
+            emitted_payload_path = write_payload(payload, github_review_path)
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
     print(f"Review report generated: {report_path}")
+    if emitted_payload_path:
+        print(f"GitHub review payload generated: {emitted_payload_path}")
     return 0
 
 

@@ -34,6 +34,10 @@ The tool is a local CLI that reads git diffs, runs detected test commands, and r
 
 The tool must never execute commands derived from model output. Automated test execution is limited to deterministic project-type detection in the local test runner, but the behavior of the tested project and its dependencies remains outside this repository's control.
 
+GitHub review payload generation treats diff-derived and model-derived text as untrusted Markdown. The dry-run payload builder escapes HTML-sensitive characters, Markdown link and emphasis controls, backticks, mentions, issue autolinks, and code-fence breakout attempts before placing finding text in comment bodies.
+
+The dry-run PR comment payload workflow is manual-only, runs with `contents: read`, and posts nothing. `pull_request_target` remains forbidden for this project. Future comment posting will require an explicit permission review before adding `pull-requests: write`.
+
 ## Out of Scope
 
 - upstream dependency CVEs unless this project adds an unsafe integration or configuration
