@@ -23,9 +23,16 @@ git diff --check
 - Markdown escaping tests pass
 - dry-run PR comment payload workflow is `workflow_dispatch` only
 - dry-run PR comment payload workflow has `contents: read`
-- dry-run PR comment payload workflow has no `pull-requests: write`
+- dry-run PR comment payload build job has no `pull-requests: write`
 - payload artifact contains no secrets
 - `reports/github/` not committed
+- `post_summary` default is `false`
+- summary comment write permission exists only in the post job
+- PR comment workflow remains manual-only
+- no `pull_request_target`
+- summary marker upsert prevents duplicate active summary comments
+- upsert decision tests pass
+- Markdown hardening tests pass
 
 ## Branch and PR Hygiene
 

@@ -9,6 +9,7 @@ from github_review_reporter import (
     MAX_MESSAGE_CHARS,
     SUMMARY_MARKER,
     build_review_payload,
+    build_summary_comment_body,
     escape_markdown,
     is_commentable,
     write_payload,
@@ -140,6 +141,45 @@ def test_escape_markdown_caps_length() -> None:
     assert escaped.endswith("(truncated)")
 
 
+def test_escape_markdown_neutralizes_leading_heading() -> None:
+    assert escape_markdown("# heading").startswith("\u200b# heading")
+
+
+def test_escape_markdown_neutralizes_leading_block_quote() -> None:
+    assert escape_markdown("> quoted").startswith("\u200b&gt; quoted")
+
+
+def test_escape_markdown_neutralizes_leading_dash_list() -> None:
+    assert escape_markdown("- item").startswith("\u200b- item")
+
+
+def test_escape_markdown_neutralizes_leading_plus_list() -> None:
+    assert escape_markdown("+ item").startswith("\u200b+ item")
+
+
+def test_escape_markdown_neutralizes_leading_numeric_lists() -> None:
+    assert escape_markdown("1. item").startswith("\u200b1. item")
+    assert escape_markdown("1) item").startswith("\u200b1) item")
+
+
+def test_escape_markdown_truncation_does_not_end_with_dangling_backslash() -> None:
+    prefix = "a" * (MAX_MESSAGE_CHARS - len(" ... (truncated)") - 1)
+    escaped = escape_markdown(f"{prefix}`" + ("b" * 100))
+    content = escaped.removesuffix(" ... (truncated)")
+
+    assert escaped.endswith("(truncated)")
+    assert not content.endswith("\\")
+
+
+def test_escape_markdown_truncation_does_not_leave_partial_entity() -> None:
+    prefix = "a" * (MAX_MESSAGE_CHARS - len(" ... (truncated)") - 2)
+    escaped = escape_markdown(f"{prefix}&" + ("b" * 100))
+    content = escaped.removesuffix(" ... (truncated)")
+
+    assert escaped.endswith("(truncated)")
+    assert not content.endswith(("&", "&a", "&am", "&amp", "&l", "&lt", "&g", "&gt"))
+
+
 def test_build_review_payload_shape_and_summary_counts() -> None:
     review = _review(
         [
@@ -167,6 +207,26 @@ def test_build_review_payload_shape_and_summary_counts() -> None:
     assert "Human-in-the-loop note" in body
     assert "#### General" in body
     assert "#\u200b123" in body
+
+
+def test_build_summary_comment_body_contains_marker_and_review_context() -> None:
+    review = _review(
+        [
+            _finding(file="a.py", line=2, severity="high", message="Inline finding."),
+            _finding(file=None, line=None, category="recommended_action", severity="info", message="Summary item."),
+        ]
+    )
+
+    body = build_summary_comment_body(review, _diff_index())
+
+    assert SUMMARY_MARKER in body
+    assert "Verdict: looks\\_good" in body
+    assert "Risk level: Low" in body
+    assert "Test status: passed" in body
+    assert "Inline findings: 1" in body
+    assert "Summary-routed findings: 1" in body
+    assert "Human-in-the-loop note" in body
+    assert "Summary item." in body
 
 
 def test_build_review_payload_is_deterministic() -> None:

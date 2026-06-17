@@ -435,7 +435,7 @@
           <span class="engine-label">AI review engine</span>
             demo mode using structured AI review output
           &nbsp;&middot;&nbsp;
-          Generated <time>2026-06-17 22:25</time>
+          Generated <time>2026-06-17 23:05</time>
         </p>
       </div>
       <div style="padding-top:4px;">
@@ -447,7 +447,7 @@
     <div class="summary-grid">
       <div class="stat-card">
         <div class="stat-label">Changed Files</div>
-        <div class="stat-value">11</div>
+        <div class="stat-value">14</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Risk Level</div>
@@ -481,7 +481,7 @@
     <section class="section">
       <h2>Project Summary</h2>
       <div class="section-body">
-        <p>Reviewed 11 changed file(s) via the AI review engine. Running in demo mode using structured AI review output.</p>
+        <p>Reviewed 14 changed file(s) via the AI review engine. Running in demo mode using structured AI review output.</p>
       </div>
     </section>
 
@@ -489,20 +489,23 @@
     <section class="section">
       <h2>
         Changed Files
-        <span class="h2-count">11 file(s)</span>
+        <span class="h2-count">14 file(s)</span>
       </h2>
       <div class="section-body">
           <ul class="file-list">
               <li>.github/workflows/pr-comment.yml</li>
-              <li>.gitignore</li>
               <li>README.md</li>
               <li>SECURITY.md</li>
+              <li>backend/app/github_comment_upsert.py</li>
+              <li>backend/app/github_constants.py</li>
               <li>backend/app/github_review_reporter.py</li>
               <li>backend/app/main.py</li>
               <li>backend/reports/review_report.html</li>
               <li>docs/DATA_HANDLING.md</li>
               <li>docs/RELEASE_CHECKLIST.md</li>
+              <li>docs/portfolio-engineering-summary.md</li>
               <li>tests/test_emit_github_review_cli.py</li>
+              <li>tests/test_github_comment_upsert.py</li>
               <li>tests/test_github_review_reporter.py</li>
           </ul>
       </div>
@@ -572,7 +575,7 @@
             <span class="badge badge-pass">&#10003; Passed</span>
           <span>
             <strong>python</strong>
-              &mdash; 63 passed in 1.62s
+              &mdash; 78 passed in 1.76s
           </span>
         </div>
 
@@ -596,22 +599,23 @@
           <details>
             <summary>View full test output</summary>
             <pre>============================= test session starts =============================
-platform win32 -- Python 3.11.9, pytest-9.0.3, pluggy-1.6.0
+platform win32 -- Python 3.11.9, pytest-9.0.2, pluggy-1.6.0
 rootdir: &lt;repo&gt;
 configfile: pytest.ini
 testpaths: tests
 plugins: anyio-4.13.0
-collected 63 items
+collected 78 items
 
-tests/test_anchored_findings.py .............                            [ 20%]
-tests/test_diff_positioning.py .............                             [ 41%]
-tests/test_emit_github_review_cli.py .                                   [ 42%]
-tests/test_eval_harness.py ....                                          [ 49%]
-tests/test_github_review_reporter.py ................                    [ 74%]
-tests/test_review_decision.py ..........                                 [ 90%]
+tests/test_anchored_findings.py .............                            [ 16%]
+tests/test_diff_positioning.py .............                             [ 33%]
+tests/test_emit_github_review_cli.py .                                   [ 34%]
+tests/test_eval_harness.py ....                                          [ 39%]
+tests/test_github_comment_upsert.py .......                              [ 48%]
+tests/test_github_review_reporter.py ........................            [ 79%]
+tests/test_review_decision.py ..........                                 [ 92%]
 tests/test_risk_estimation.py ......                                     [100%]
 
-============================= 63 passed in 1.62s ==============================</pre>
+============================= 78 passed in 1.76s ==============================</pre>
           </details>
 
       </div>
@@ -657,7 +661,7 @@ tests/test_risk_estimation.py ......                                     [100%]
               <li>
                 <div class="anchored-finding-meta">
                     <code>.github/workflows/pr-comment.yml</code>
-                  <span>file-level</span>
+                  <span>line 5</span>
                   <span>possible_bug</span>
                   <span class="badge badge-medium">medium</span>
                   <span>50% confidence</span>
@@ -667,7 +671,7 @@ tests/test_risk_estimation.py ......                                     [100%]
               <li>
                 <div class="anchored-finding-meta">
                     <code>.github/workflows/pr-comment.yml</code>
-                  <span>file-level</span>
+                  <span>line 5</span>
                   <span>possible_bug</span>
                   <span class="badge badge-medium">medium</span>
                   <span>50% confidence</span>
@@ -677,7 +681,7 @@ tests/test_risk_estimation.py ......                                     [100%]
               <li>
                 <div class="anchored-finding-meta">
                     <code>.github/workflows/pr-comment.yml</code>
-                  <span>file-level</span>
+                  <span>line 5</span>
                   <span>security_reliability</span>
                   <span class="badge badge-high">high</span>
                   <span>60% confidence</span>
@@ -687,7 +691,7 @@ tests/test_risk_estimation.py ......                                     [100%]
               <li>
                 <div class="anchored-finding-meta">
                     <code>.github/workflows/pr-comment.yml</code>
-                  <span>file-level</span>
+                  <span>line 5</span>
                   <span>security_reliability</span>
                   <span class="badge badge-high">high</span>
                   <span>60% confidence</span>
@@ -697,7 +701,7 @@ tests/test_risk_estimation.py ......                                     [100%]
               <li>
                 <div class="anchored-finding-meta">
                     <code>.github/workflows/pr-comment.yml</code>
-                  <span>file-level</span>
+                  <span>line 5</span>
                   <span>missing_test</span>
                   <span class="badge badge-low">low</span>
                   <span>70% confidence</span>

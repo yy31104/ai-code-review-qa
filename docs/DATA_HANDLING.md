@@ -40,13 +40,15 @@ The committed sample report should be demo-mode and credential-free.
 
 ## GitHub Review Payload (Dry Run)
 
-The optional `--emit-github-review` CLI flag writes a local JSON payload shaped like a GitHub create-review request. The payload may contain finding messages, file paths, line numbers, category, severity, review verdict, risk level, and test status.
+The optional `--emit-github-review` CLI flag writes a local JSON payload shaped like a GitHub create-review request. The optional `--emit-summary-comment` flag writes a local JSON body for a marker-based PR summary comment. These payloads may contain finding messages, file paths, line numbers, category, severity, review verdict, risk level, and test status.
 
-The payload does not include the raw git diff. It is generated from the final `ReviewResult` plus a local `DiffIndex` so inline findings can be validated against true right-side diff lines before they are included as comments.
+The payloads do not include the raw git diff. They are generated from the final `ReviewResult` plus a local `DiffIndex` so inline finding counts and summary routing are derived from validated right-side diff lines.
 
-This PR stage posts nothing to GitHub. The dry-run workflow is a manual artifact workflow, and the payload remains a local or CI artifact controlled by the user.
+By default, the workflow posts nothing to GitHub. The build job is a manual artifact workflow, and the payloads remain local or CI artifacts controlled by the user.
 
-Future PR-comment posting will make summary or inline review text visible to repository collaborators and may trigger GitHub notifications.
+When `post_summary` is explicitly set to `true`, the workflow uses the repository-scoped `GITHUB_TOKEN` to create or patch one PR summary comment. Summary comments are visible to repository collaborators; on public repositories, they are public. Comments may trigger GitHub notifications. No raw git diff is posted.
+
+The no-store boundary still holds for this tool: it does not add a database, server-side history, telemetry, or hosted backend. GitHub stores comments that the user explicitly chooses to post.
 
 ## OpenAI Optional-Mode Boundary
 
