@@ -60,7 +60,8 @@ jobs:
             --head-sha "$HEAD_SHA" \
             --output backend/reports/review_report.html \
             --emit-summary-comment reports/github/summary-comment.json \
-            --emit-inline-review reports/github/inline-review.json
+            --emit-inline-review reports/github/inline-review.json \
+            --emit-finding-fingerprints reports/github/finding-fingerprints.json
 
       - name: Upload PR summary artifacts
         uses: actions/upload-artifact@v6
@@ -70,6 +71,7 @@ jobs:
             backend/reports/review_report.html
             reports/github/summary-comment.json
             reports/github/inline-review.json
+            reports/github/finding-fingerprints.json
           if-no-files-found: error
 
   post:
@@ -190,6 +192,12 @@ jobs:
           gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}/comments" \
             --paginate > reports/github/existing-review-comments.json
 
+      - name: Build stale inline detection plan
+        run: |
+          python backend/app/github_inline_stale.py \
+            --existing reports/github/existing-review-comments.json \
+            --fingerprints reports/github/finding-fingerprints.json > reports/github/stale-plan.json
+
       - name: Filter existing inline comments
         run: |
           python backend/app/github_inline_upsert.py \
@@ -222,5 +230,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: pr-inline-to-post
-          path: reports/github/inline-to-post.json
+          path: |
+            reports/github/inline-to-post.json
+            reports/github/stale-plan.json
           if-no-files-found: warn

@@ -48,6 +48,11 @@ git diff --check
 - inline posting skips existing fingerprints before create-review
 - GitHub create-review failures are non-fatal and fall back to summary-only
 - inline post job scopes permissions to `contents: read` and `pull-requests: write`
+- stale inline detection dry-run artifact exists
+- stale inline detection has no delete, resolve, patch, edit, or reply behavior
+- stale detection considers marker-owned comments only
+- `stale-plan.json` artifact contains no secrets
+- any future stale action is separately gated and non-destructive
 - same-repo PR workflows continue to avoid `pull_request_target`
 
 ## Inline Comment Canary

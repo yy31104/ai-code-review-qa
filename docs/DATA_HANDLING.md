@@ -52,6 +52,8 @@ For same-repository pull requests, `.github/workflows/pr-summary.yml` can genera
 
 Inline comments are off by default and require both `AI_REVIEW_SUMMARY_AUTOPOST=true` and `AI_REVIEW_INLINE_COMMENTS=true`. When enabled, inline comments are visible to repository collaborators; on public repositories, they are public and may trigger GitHub notifications. Fingerprint markers are embedded in inline comment bodies so repeated workflow runs can skip already-posted findings. The workflow recomputes the PR diff and revalidates each inline line before posting, but it does not post the raw diff.
 
+The stale inline detection artifact, `stale-plan.json`, may contain GitHub review comment IDs, finding fingerprints, file paths, line numbers, and comment authors for marker-owned inline comments. It does not include the raw git diff, and no secrets are expected. The artifact is controlled by GitHub Actions artifact retention.
+
 The no-store boundary still holds for this tool: it does not add a database, server-side history, telemetry, or hosted backend. GitHub stores comments that the user explicitly chooses to post.
 
 ## OpenAI Optional-Mode Boundary

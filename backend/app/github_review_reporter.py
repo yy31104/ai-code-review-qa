@@ -71,6 +71,11 @@ def finding_fingerprint(finding: Finding) -> str:
     return _sha1_hex("\x00".join(parts))
 
 
+def all_finding_fingerprints(review: ReviewResult) -> list[str]:
+    """Return stable fingerprints for every current finding, including summary-routed findings."""
+    return sorted(finding_fingerprint(finding) for finding in review.findings)
+
+
 def route_inline_findings(
     review: ReviewResult,
     diff_index: DiffIndex,

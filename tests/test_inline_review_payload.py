@@ -8,6 +8,7 @@ from diff_index import parse_unified_diff
 from github_constants import INLINE_FINGERPRINT_PREFIX, INLINE_FINGERPRINT_SUFFIX
 from github_review_reporter import (
     MAX_INLINE_COMMENTS,
+    all_finding_fingerprints,
     build_inline_review_payload,
     finding_fingerprint,
     route_inline_findings,
@@ -119,6 +120,17 @@ def test_finding_fingerprint_excludes_head_sha() -> None:
     assert _fingerprint_from_body(first["comments"][0]["body"]) == _fingerprint_from_body(
         second["comments"][0]["body"]
     )
+
+
+def test_all_finding_fingerprints_includes_every_current_finding() -> None:
+    findings = [
+        _finding(severity="high", category="possible_bug", message="Inline eligible."),
+        _finding(severity="low", category="missing_test", message="Summary routed."),
+        _finding(category="suggested_test", severity="info", message="Summary-only category."),
+    ]
+    review = _review(findings)
+
+    assert all_finding_fingerprints(review) == sorted(finding_fingerprint(finding) for finding in findings)
 
 
 @pytest.mark.parametrize(
