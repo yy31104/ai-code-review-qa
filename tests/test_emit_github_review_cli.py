@@ -38,6 +38,7 @@ def test_cli_emits_github_review_payload_without_network(tmp_path: Path) -> None
     payload_path = tmp_path / "reports" / "github" / "review.json"
     summary_path = tmp_path / "reports" / "github" / "summary-comment.json"
     inline_path = tmp_path / "reports" / "github" / "inline-review.json"
+    fingerprints_path = tmp_path / "reports" / "github" / "finding-fingerprints.json"
     env = os.environ.copy()
     env["AI_REVIEW_MODE"] = "demo"
 
@@ -55,6 +56,8 @@ def test_cli_emits_github_review_payload_without_network(tmp_path: Path) -> None
             str(summary_path),
             "--emit-inline-review",
             str(inline_path),
+            "--emit-finding-fingerprints",
+            str(fingerprints_path),
             "--head-sha",
             "abc123",
         ],
@@ -70,6 +73,7 @@ def test_cli_emits_github_review_payload_without_network(tmp_path: Path) -> None
     assert payload_path.exists()
     assert summary_path.exists()
     assert inline_path.exists()
+    assert fingerprints_path.exists()
     payload = json.loads(payload_path.read_text(encoding="utf-8"))
     assert payload["event"] == "COMMENT"
     assert payload["commit_id"] == "abc123"
@@ -83,9 +87,14 @@ def test_cli_emits_github_review_payload_without_network(tmp_path: Path) -> None
     assert inline_payload["event"] == "COMMENT"
     assert inline_payload["commit_id"] == "abc123"
     assert isinstance(inline_payload["comments"], list)
+    fingerprints = json.loads(fingerprints_path.read_text(encoding="utf-8"))
+    assert list(fingerprints) == ["fingerprints"]
+    assert isinstance(fingerprints["fingerprints"], list)
+    assert fingerprints["fingerprints"]
     assert "GitHub review payload generated" in completed.stdout
     assert "GitHub summary comment generated" in completed.stdout
     assert "GitHub inline review payload generated" in completed.stdout
+    assert "Finding fingerprints generated" in completed.stdout
 
 
 def _run(command: list[str], *, cwd: Path) -> None:

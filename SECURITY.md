@@ -44,6 +44,8 @@ The same-repo PR summary workflow uses `pull_request`, not `pull_request_target`
 
 Inline create-review posting is behind a separate opt-in gate and only runs when both `AI_REVIEW_SUMMARY_AUTOPOST == 'true'` and `AI_REVIEW_INLINE_COMMENTS == 'true'`. Summary posting runs first and remains the fallback output. The inline post job scopes permissions to `contents: read` and `pull-requests: write`, recomputes the PR diff, revalidates every target line against `DiffIndex` immediately before posting, filters already-posted fingerprints, and passes the create-review body to `gh api` with `--input`. GitHub create-review failures, including 422-style invalid-review failures, are emitted as warnings and are non-fatal because the summary comment already exists. Fork PRs remain skipped and `pull_request_target` remains forbidden.
 
+Stale inline detection is read-only. It only considers inline review comments that contain this project's hidden AI finding marker, writes a `stale-plan.json` artifact, and does not delete, resolve, edit, patch, or reply to comments. Human comments without the marker are ignored. Any future stale-comment action must remain marker-owned and non-destructive, such as resolving via GitHub review-thread APIs; deleting comments is out of scope.
+
 ## Out of Scope
 
 - upstream dependency CVEs unless this project adds an unsafe integration or configuration
