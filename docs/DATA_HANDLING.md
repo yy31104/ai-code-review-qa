@@ -56,6 +56,8 @@ The stale inline detection artifact, `stale-plan.json`, may contain GitHub revie
 
 `AI_REVIEW_STALE_ACTION=true` enables an isolated same-repository PR job that writes to GitHub only through GraphQL `resolveReviewThread`. The selector is limited to bot-authored, marker-owned, unresolved, now-stale inline review threads. It resolves only; it never deletes, edits, replies to, or minimizes comments. Fork and other non-same-repository PRs are skipped, and the project does not create or enable the repository variable.
 
+Manual stale-resolve verification should follow [STALE_RESOLVE_RUNBOOK.md](STALE_RESOLVE_RUNBOOK.md). The execute path paginates outer GraphQL `reviewThreads`, but inner `comments(first: 100)` is not paginated; this has a safe under-resolve bias when a single thread contains more than 100 comments.
+
 The no-store boundary still holds for this tool: it does not add a database, server-side history, telemetry, or hosted backend. GitHub stores comments that the user explicitly chooses to post.
 
 ## OpenAI Optional-Mode Boundary
