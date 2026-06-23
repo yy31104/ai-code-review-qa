@@ -28,6 +28,7 @@ Modern teams need fast feedback before code reaches human reviewers. This tool h
 - Dry-run stale inline comment detection for marker-owned AI findings
 - Dry-run stale resolve enrichment that maps stale bot comments to GitHub review threads
 - Opt-in non-destructive stale inline resolution for eligible bot-owned marker threads
+- Complete same-repo GitHub PR review lifecycle from diff to opt-in stale resolve
 - GitHub-style HTML report generated with Jinja2
 - Local golden-case eval harness
 - Markdown/HTML eval summary artifacts
@@ -47,7 +48,7 @@ A three-PR production-upgrade phase added a deterministic regression baseline ar
 - GitHub Actions `eval-report` artifact (results JSON plus Markdown/HTML summaries) on PRs, pushes, and nightly runs
 - Demo mode remains credential-free; OpenAI mode stays optional and config-gated
 
-See [docs/portfolio-engineering-summary.md](docs/portfolio-engineering-summary.md) for the full engineering closeout.
+The GitHub PR review lifecycle is now capstone-ready for same-repository PRs: diff, tests, structured review, verdict, HTML artifact, summary comment, inline comments, stale detection, and opt-in non-destructive stale resolve are documented end to end. See [docs/portfolio-engineering-summary.md](docs/portfolio-engineering-summary.md) for the interview-oriented engineering closeout and [docs/STALE_RESOLVE_RUNBOOK.md](docs/STALE_RESOLVE_RUNBOOK.md) for the manual stale-resolve canary procedure.
 
 ## Sample Report Screenshot
 
@@ -146,7 +147,7 @@ Review output includes an additive `findings` list alongside the existing human-
 
 When a unified diff can be validated, anchored findings use true added-line anchors from the right side of the diff. Findings that cannot be safely anchored remain file-level or summary-routed for future reporters.
 
-This structured format is the foundation for future inline PR comments. The current version renders anchored findings in the HTML report but does not post GitHub comments yet.
+This structured format feeds the HTML report, summary comment artifact, and opt-in inline PR comment workflow. Inline posting revalidates anchors against the current PR diff before GitHub receives a create-review request.
 
 ## Security & Trust
 
@@ -160,6 +161,8 @@ Trust and governance docs:
 - [Security Policy](SECURITY.md)
 - [Data Handling](docs/DATA_HANDLING.md)
 - [Release Checklist](docs/RELEASE_CHECKLIST.md)
+- [Portfolio Engineering Summary](docs/portfolio-engineering-summary.md)
+- [Stale Resolve Runbook](docs/STALE_RESOLVE_RUNBOOK.md)
 
 ## CLI Usage
 
@@ -222,6 +225,8 @@ Before posting inline comments, the workflow recomputes the PR diff, revalidates
 The workflow also emits stale inline artifacts when inline posting is enabled. `stale-plan.json` compares marker-owned inline comments against all current finding fingerprints, including summary-routed and overflow findings, so capped findings are not misclassified as stale. `stale-action-plan.json` maps stale marker-owned `github-actions[bot]` comments to GraphQL review thread node IDs and records whether each thread is eligible for non-destructive resolve. These artifacts do not delete, edit, reply to, or minimize comments.
 
 Stale inline resolution is separately opt-in through the repository variable `AI_REVIEW_STALE_ACTION=true`. It enables GraphQL `resolveReviewThread` only for bot-authored, marker-owned, unresolved, now-stale inline threads. It resolves only; it never deletes, edits, replies to, or minimizes comments. Fork and other non-same-repository PRs are skipped, and this repository variable is not created or enabled by the project.
+
+Known limitation: the stale resolve execute path paginates the outer GraphQL `reviewThreads` connection, but each thread's inner `comments(first: 100)` connection is not paginated. This has a safe under-resolve bias: unusually long review threads may fail to match an otherwise eligible stale comment instead of resolving an uncertain thread.
 
 The default workflow behavior is dry-run artifact generation only. Summary posting is manual and opt-in through `.github/workflows/pr-comment.yml`:
 

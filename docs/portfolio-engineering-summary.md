@@ -2,100 +2,110 @@
 
 ## Project Pitch
 
-`ai-code-review-qa` is a portfolio-grade, AI-assisted SDLC tool that reads a Git diff, runs the project's automated tests, produces a structured code-review (possible bugs, missing tests, suggested test cases, security/reliability concerns, and a risk level) validated with Pydantic, and renders a shareable HTML report. It runs **deterministically and offline by default** in demo mode, with an **optional, config-gated OpenAI mode**, and is wrapped in a deterministic eval harness so review behavior can change on purpose but never by accident.
+`ai-code-review-qa` is a portfolio-grade AI-assisted SDLC tool that turns a pull request diff into deterministic review artifacts a developer can verify before merge. It reads the Git diff, runs detected local tests, creates a structured review result, derives a test-aware verdict, renders an HTML report, and can optionally publish a GitHub summary comment, inline review comments, stale inline diagnostics, and non-destructive stale review-thread resolution.
 
-## Architecture Summary
+The important engineering choice is that AI output is not treated as an unchecked side effect. Demo mode is deterministic and credential-free by default, OpenAI mode is explicitly configured and schema-validated, GitHub writes are opt-in, and the stale lifecycle is artifact-driven before any mutation is attempted.
 
-```text
-Git diff reader  ->  Test runner (pytest / npm / dotnet)
-        |
-        v
-Review engine (review_diff)
-  +-- demo mode  : deterministic mock_review_json (default, credential-free)
-  +-- openai mode: optional, config-gated, falls back to demo on any failure
-        |
-        v
-Pydantic schemas (ReviewResult / TestResult)
-        |
-        +--> Jinja2 HTML review report  (artifact: review-report)
-        +--> Eval harness regression report (artifact: eval-report)
+## End-To-End Lifecycle
+
+The completed same-repository PR review lifecycle is:
+
+1. **Diff reader:** `backend/app/git_diff_reader.py` reads working-tree or commit-range diffs. The same-repo PR workflow uses `git merge-base` so artifacts are built from the PR's true `<merge-base>..<head>` diff.
+2. **Test runner:** `backend/app/test_runner.py` detects Python, Node, and .NET test commands and captures sanitized test output for the review report.
+3. **Review engine:** `backend/app/llm_reviewer.py` runs deterministic demo mode by default. Optional OpenAI mode is gated by `AI_REVIEW_MODE=openai` plus `OPENAI_API_KEY`, truncates diff egress at `MAX_DIFF_CHARS`, validates the response, and falls back to demo mode on configuration, API, or schema failures.
+4. **Schema boundary:** `backend/app/schemas.py` owns `ReviewResult`, `Finding`, and `TestResult`. Both demo and OpenAI paths must produce a `ReviewResult` before reporting continues.
+5. **Verdict engine:** `derive_decision()` recomputes the final verdict from risk level plus automated test status, producing `needs_human_review`, `review_recommended`, or `looks_good`.
+6. **HTML report:** `backend/app/report_generator.py` renders the human-readable HTML artifact.
+7. **Summary comment:** `.github/workflows/pr-summary.yml` can upsert one marker-owned top-level PR summary comment when `AI_REVIEW_SUMMARY_AUTOPOST=true`.
+8. **Inline comments:** When `AI_REVIEW_INLINE_COMMENTS=true` is also set, the workflow recomputes the PR diff, revalidates each inline line against `DiffIndex`, filters duplicate finding fingerprints, and posts a capped GitHub create-review payload.
+9. **Stale detection dry-run:** `github_inline_stale.py` compares marker-owned inline comments with current finding fingerprints and emits `stale-plan.json`.
+10. **Stale resolve plan:** `github_inline_resolve_plan.py` maps stale REST review comment IDs to GraphQL review thread node IDs and applies eligibility rules: thread found, marker present, author is `github-actions[bot]`, and thread is not already resolved.
+11. **Opt-in stale resolve:** `github_inline_resolve_apply.py` selects eligible thread node IDs, and the isolated `resolve-stale` job calls only GraphQL `resolveReviewThread` when `AI_REVIEW_STALE_ACTION=true`.
+
+## PR Summary Workflow Graph
+
+The same-repository PR workflow is intentionally staged so each write surface has a narrower gate than the artifact generation step.
+
+```mermaid
+graph TD
+  build["build: diff, tests, ReviewResult, HTML, summary/inline/fingerprint artifacts"]
+  post["post: summary comment upsert"]
+  post_inline["post-inline: diff revalidation, fingerprint dedupe, inline comments, stale dry-run artifacts"]
+  resolve_stale["resolve-stale: opt-in stale review-thread resolve"]
+
+  build --> post
+  build --> post_inline
+  post --> post_inline
+  build --> resolve_stale
+  post_inline --> resolve_stale
 ```
 
-The eval harness sits beside the engine rather than inside it. `evals/run_local.py` loads `evals/data/golden_cases.jsonl`, calls the engine through a `predict(case) -> ReviewResult` seam that forces demo mode, grades each case against declared expectations, and writes `results.json`. `evals/render_report.py` turns those results into Markdown and HTML summaries. Both the review workflow and the eval workflow upload their outputs as GitHub Actions artifacts.
+Workflow gates:
 
-## What Changed Across the Upgrade Phase
+- `build` runs only for same-repository PRs: `github.event.pull_request.head.repo.full_name == github.repository`.
+- Fork PRs are skipped entirely by this workflow; they are not checked out, tested, artifacted, or commented on.
+- `post` additionally requires `vars.AI_REVIEW_SUMMARY_AUTOPOST == 'true'`.
+- `post-inline` additionally requires `vars.AI_REVIEW_SUMMARY_AUTOPOST == 'true'` and `vars.AI_REVIEW_INLINE_COMMENTS == 'true'`.
+- `resolve-stale` additionally requires `needs.build.result == 'success'` and `vars.AI_REVIEW_STALE_ACTION == 'true'`.
+- The project uses `pull_request`, not `pull_request_target`.
+- The only GraphQL mutation in the PR summary workflow is `resolveReviewThread`, and it is isolated to the opt-in `resolve-stale` job.
 
-### PR #1 — Deterministic eval harness baseline
-- Added `evals/run_local.py` (loader, grader, JSON results) and `evals/render_report.py` (Markdown/HTML summaries).
-- Added the first `golden_cases.jsonl` seed dataset and pytest coverage for the harness.
-- Added the GitHub Actions **Eval Harness** workflow and the `eval-report` artifact.
-- Updated `README.md`, `AGENTS.md`, and `CLAUDE.md`.
+## Trust And Safety Gates
 
-### PR #2 — Prediction seam and dataset expansion
-- Added a `predict(case) -> ReviewResult` seam that routes eval predictions through the **public `review_diff()` path** while forcing demo mode and restoring the prior `AI_REVIEW_MODE` afterward.
-- Expanded golden cases from 5 to 18, including true-negative and false-positive guard cases.
-- Added a `reports/evals/` ignore rule so generated artifacts stay uncommitted.
-- Added `.gitattributes` for LF normalization (removes cross-platform line-ending churn).
+| Variable | Enables | Blast radius | Default | Failure behavior |
+| --- | --- | --- | --- | --- |
+| `AI_REVIEW_MODE=openai` | Optional OpenAI-backed structured review in local/CLI paths | Diff and changed-file list egress to OpenAI, truncated by `MAX_DIFF_CHARS` | Demo mode | Missing key, API failure, unknown mode, or schema failure falls back to deterministic demo mode |
+| `AI_REVIEW_SUMMARY_AUTOPOST=true` | Marker-owned top-level PR summary comment upsert | One PR conversation comment on same-repo PRs | Off | Build artifacts still exist; posting is isolated to the `post` job |
+| `AI_REVIEW_INLINE_COMMENTS=true` | Capped inline create-review comments after summary posting | New inline review comments on same-repo PRs | Off | Create-review failures warn and keep the job green because the summary comment is the fallback |
+| `AI_REVIEW_STALE_ACTION=true` | Non-destructive stale review-thread resolution via GraphQL `resolveReviewThread` | Resolves eligible bot-owned marker review threads only | Off | Pre-mutation steps are `continue-on-error`; missing `resolve-apply.json` exits cleanly; per-thread failures warn and continue |
 
-### PR #3 — Identifier-aware risk tokenization
-- Improved the deterministic demo risk tokenizer to split camelCase/PascalCase identifiers before lowercasing, so risk terms inside names like `authToken`, `deleteUser`, `runSql`, and `PaymentProcessor` are detected.
-- Preserved the existing false-positive guards (`author`, `tokenizer`, `deleted-at`, and docs/test-only payment wording).
-- Added direct unit tests for risk estimation and tokenization.
-- Expanded golden cases from 18 to 23.
+Non-variable gates:
 
-## Key Engineering Metrics
+- `pull_request_target` remains forbidden.
+- `pull-requests: write` is scoped only to summary posting, inline posting, and opt-in stale resolve jobs.
+- Posted comment bodies are passed through JSON files to `gh api`, not interpolated into shell commands.
+- Stale action eligibility requires marker ownership plus `github-actions[bot]` author ownership; humans and other bots are ineligible even if they copy the marker.
 
-- 23 deterministic golden cases.
-- 10 pytest tests.
-- Latest eval result: **23/23 cases passed, 150/150 checks passed.**
-- Two CI artifacts: `eval-report` (eval harness) and `review-report` (review CLI).
-- Eval workflow runs on pull request, push to `main`, manual dispatch, and a nightly schedule, with `permissions: contents: read`.
-- Deterministic and offline by default in demo/eval mode; no credentials required.
+## Eval-Driven Development
 
-## Run It Locally
+The eval harness is a deterministic regression gate for the review engine, not a broad claim about model quality.
 
-```bash
-# Install
-python -m pip install -r backend/requirements.txt
+- `evals/data/golden_cases.jsonl` currently contains 25 hand-reviewed cases.
+- `python evals/run_local.py --out reports/evals/results.json` currently reports 25/25 cases and 206/206 checks passing.
+- Evals force deterministic demo mode through the public `review_diff()` path, so behavior changes are tested without API keys.
+- `.github/workflows/evals.yml` runs pytest, the eval harness, and Markdown/HTML eval report rendering on pull requests, pushes to `main`, manual dispatch, and a nightly schedule.
+- The evals cover risk, missing-test, false-positive, anchor-position, and review-decision behavior. They are a regression baseline for the current deterministic reviewer; they do not measure real developer acceptance rate or prove LLM review quality.
 
-# Tests
-python -m pytest -q
+## Artifact-Driven CI
 
-# Evals (deterministic, no API key)
-python evals/run_local.py --out reports/evals/results.json
-python evals/render_report.py \
-  --in reports/evals/results.json \
-  --md reports/evals/summary.md \
-  --html reports/evals/summary.html
+The workflow exposes intermediate state as artifacts so humans can audit what happened before trusting an automated comment or resolve action.
 
-# Core CLI smoke test
-python backend/app/main.py --repo ./sample-projects/python-demo --output backend/reports/review_report.html
-```
+- `pr-summary-artifacts`: HTML report, summary comment body, inline review payload, and finding fingerprints.
+- `pr-inline-to-post`: inline post payload plus stale detection and stale action planning artifacts.
+- `pr-stale-resolve`: existing review comments, stale plan, GraphQL review threads, stale action plan, selected thread IDs, and the final thread-node-id list.
+- `eval-report`: eval result JSON plus Markdown/HTML summaries.
 
-Generated files under `reports/evals/` are gitignored and should stay uncommitted.
+This artifact-first approach makes the GitHub automation inspectable: the reviewer can compare the diff, fingerprints, stale plan, and resolve apply file before deciding whether an opt-in mutation path is safe to keep enabled.
 
-## What This Proves in Interviews
+## Known Limitations
 
-- **Eval-driven development:** the review engine is guarded by a deterministic regression suite, not just unit tests, so behavior drift is caught in CI.
-- **Designing for change:** the `predict()` seam grades the real public entrypoint, leaving a clean path to later compare demo vs. model output without rewriting the harness.
-- **Precision/recall reasoning:** PR #3 is a concrete example of trading recall against precision deliberately (camelCase detection added while lookalike false positives stayed guarded), with cases that lock both directions.
-- **Production hygiene:** minimal CI permissions, ignored generated artifacts, LF normalization, and honest documentation of scope.
+- The outer `reviewThreads` connection is paginated in the `resolve-stale` execute path with `gh api graphql --paginate --slurp`, but each thread's inner `comments(first: 100)` connection is not paginated. That creates a safe under-resolve bias: deeply long review threads may fail to match an eligible stale comment instead of resolving something uncertain.
+- The PR #18 variable-on canary proved the default-off gate and empty-action execute path. A live non-empty stale resolve happy path is documented as a manual runbook verification, not as an already automated mutating CI canary.
+- This is not a GitHub App and does not support fork PR mutation. Fork PRs are skipped by design.
+- The demo reviewer is deterministic and intentionally simple; it is not a security scanner or a model-quality benchmark.
+- OpenAI mode is optional and account-policy dependent; this repository does not control OpenAI retention, billing, or organization settings.
 
-## Limitations (Honest Scope)
+## Interview Talking Points
 
-- This is a **deterministic regression baseline, not a full model-quality benchmark.** It pins the demo engine's behavior; it does not score answer quality.
-- It is **not yet a GitHub App** and does not post inline comments or run automatic PR-triggered commenting; it supports a manual, opt-in summary-comment upsert workflow.
-- It **does not measure real developer comment acceptance rate** or any human-feedback metric.
-- The demo risk heuristic is intentionally simple; risk terms fused into a single lowercase run (e.g. `authtoken`) are not split, and the engine is not a security scanner.
-- **OpenAI mode is optional and config-gated** — it is never required to run tests or evals.
+- **Schema-first AI boundary:** AI output must pass through `ReviewResult` validation before it becomes a report, comment payload, or eval artifact.
+- **Fail-safe GitHub automation:** Same-repo gates, opt-in variables, no `pull_request_target`, minimal permissions, JSON-file `gh api` inputs, and non-fatal write failures keep automation from becoming a hidden merge blocker.
+- **Diff anchoring and revalidation:** Inline comments are generated from validated right-side diff lines, then revalidated at posting time before GitHub receives a create-review request.
+- **Artifact-driven CI:** The workflow saves review, inline, stale, resolve, and eval artifacts so each stage can be inspected instead of trusted blindly.
+- **Non-destructive stale lifecycle:** Stale comments are detected and planned before action; the only execute path is GraphQL review-thread resolve, never delete, edit, reply, or minimize.
+- **Safe opt-in mutation design:** `AI_REVIEW_STALE_ACTION` is off by default, same-repo only, fail-safe, and limited to bot-authored marker-owned unresolved threads selected by a pure stdlib selector.
 
-## Next Safe Improvements
+## 60-120 Second Interview Pitch
 
-- Grow from 23 to ~30-50 golden cases with more explicit false-negative examples.
-- Optionally extend risk terms (e.g. `secret`, `credential`, `apikey`) with matching guard cases.
-- Add a small grader abstraction to support model-vs-demo comparison through the existing `predict()` seam.
-- Pin GitHub Actions to commit SHAs for supply-chain hardening.
+"This is an AI-assisted code review tool, but the core work is the production boundary around the AI. A PR workflow reads the real merge-base diff, runs deterministic tests, produces a schema-validated `ReviewResult`, derives a test-aware verdict, and emits an HTML report. From there, GitHub writes are staged and opt-in: first a marker-owned summary comment, then capped inline comments after diff revalidation and fingerprint dedupe, then stale detection artifacts, and finally an optional non-destructive stale resolve job that only calls GraphQL `resolveReviewThread` for eligible bot-owned marker threads.
 
-## How I Would Explain This Project in an Interview
-
-"It's an AI-assisted code-review tool, but the part I'm proud of is the engineering around the AI, not just the AI call. The review engine runs deterministically and offline by default, and I wrapped it in an eval harness with 25 hand-reviewed golden cases and CI tests that run as a gate. I added a `predict()` seam so the evals grade the real public review path, then used that harness to make a deliberate precision/recall change — detecting risk terms inside camelCase identifiers like `authToken` while keeping lookalikes like `author` from triggering false positives — with golden cases that lock both behaviors. I kept scope honest: it's a regression baseline, not a model-quality benchmark, it's not a GitHub App yet, and the paid model path is optional and gated."
+The project is safe by default: demo mode is credential-free, OpenAI mode is explicit and falls back to demo, fork PRs are skipped, `pull_request_target` is not used, and every write surface is behind a repository variable. I also built a deterministic eval harness with 25 golden cases and 206 checks, so changes to review behavior are caught in CI. I am careful not to overclaim: the evals are a regression suite for the deterministic reviewer, not proof of LLM quality, and the live non-empty stale resolve path is documented as a manual canary runbook because the merged PR #18 canary produced an empty resolve plan."
