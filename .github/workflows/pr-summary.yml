@@ -198,6 +198,50 @@ jobs:
             --existing reports/github/existing-review-comments.json \
             --fingerprints reports/github/finding-fingerprints.json > reports/github/stale-plan.json
 
+      - name: Fetch PR review threads
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          OWNER="${GITHUB_REPOSITORY%%/*}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+          gh api graphql \
+            -f owner="$OWNER" \
+            -f name="$REPO" \
+            -F number="$PR_NUMBER" \
+            -f query='
+              query($owner: String!, $name: String!, $number: Int!) {
+                repository(owner: $owner, name: $name) {
+                  pullRequest(number: $number) {
+                    reviewThreads(first: 100) {
+                      nodes {
+                        id
+                        isResolved
+                        isOutdated
+                        comments(first: 100) {
+                          nodes {
+                            databaseId
+                            author {
+                              login
+                            }
+                            body
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ' > reports/github/review-threads.json
+
+      - name: Build stale resolve action plan
+        continue-on-error: true
+        run: |
+          python backend/app/github_inline_resolve_plan.py \
+            --stale reports/github/stale-plan.json \
+            --threads reports/github/review-threads.json > reports/github/stale-action-plan.json
+
       - name: Filter existing inline comments
         run: |
           python backend/app/github_inline_upsert.py \
@@ -233,4 +277,6 @@ jobs:
           path: |
             reports/github/inline-to-post.json
             reports/github/stale-plan.json
+            reports/github/review-threads.json
+            reports/github/stale-action-plan.json
           if-no-files-found: warn

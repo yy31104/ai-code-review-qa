@@ -26,6 +26,7 @@ Modern teams need fast feedback before code reaches human reviewers. This tool h
 - Same-repo PR summary workflow with merge-base diff resolution
 - Opt-in inline PR comments with post-time diff revalidation and fingerprint dedupe
 - Dry-run stale inline comment detection for marker-owned AI findings
+- Dry-run stale resolve enrichment that maps stale bot comments to GitHub review threads
 - GitHub-style HTML report generated with Jinja2
 - Local golden-case eval harness
 - Markdown/HTML eval summary artifacts
@@ -217,7 +218,7 @@ AI_REVIEW_INLINE_COMMENTS=true
 
 Before posting inline comments, the workflow recomputes the PR diff, revalidates every inline line against `DiffIndex`, and skips duplicate inline findings by fingerprint. If GitHub create-review fails, including a 422-style invalid-review failure, the workflow emits a warning and keeps the job green because the summary comment already exists.
 
-The workflow also emits a dry-run stale inline detection artifact, `stale-plan.json`, when inline posting is enabled. It compares marker-owned inline comments against all current finding fingerprints, including summary-routed and overflow findings, so capped findings are not misclassified as stale. This dry-run artifact does not delete, resolve, edit, or reply to comments. A future stale action may resolve marker-owned comments non-destructively, but deletion is out of scope.
+The workflow also emits dry-run stale inline artifacts when inline posting is enabled. `stale-plan.json` compares marker-owned inline comments against all current finding fingerprints, including summary-routed and overflow findings, so capped findings are not misclassified as stale. `stale-action-plan.json` maps stale marker-owned `github-actions[bot]` comments to GraphQL review thread node IDs and records whether each thread would be eligible for a future non-destructive resolve action. These artifacts do not delete, resolve, edit, or reply to comments. A future stale action should be separately gated by `AI_REVIEW_STALE_ACTION`, should use non-destructive GraphQL resolve, and should never delete comments.
 
 The default workflow behavior is dry-run artifact generation only. Summary posting is manual and opt-in through `.github/workflows/pr-comment.yml`:
 
@@ -233,6 +234,7 @@ Planned rollout:
 - current: manual summary-comment upsert and same-repo PR summary workflow
 - current: opt-in inline comments after every line is re-validated against the diff index
 - current: dry-run stale inline detection artifact for marker-owned comments
+- current: dry-run stale resolve enrichment artifact for marker-owned bot comments
 - later: non-destructive stale comment resolution, richer noise controls, and provider hardening
 
 ## Eval Harness
@@ -294,7 +296,7 @@ Automatic summary posting is off by default. Set the repository variable `AI_REV
 
 Inline posting is also off by default and only runs when both `AI_REVIEW_SUMMARY_AUTOPOST=true` and `AI_REVIEW_INLINE_COMMENTS=true`. The inline job runs after the summary post job, recomputes the PR diff, revalidates comment lines, filters already-posted fingerprints, and sends a capped create-review payload. The create-review body is intentionally minimal and points readers to the summary comment. GitHub create-review failures are non-fatal so the summary comment remains the reliable fallback.
 
-The inline job also writes `reports/github/stale-plan.json` as a read-only debug artifact. It only considers comments carrying the hidden AI finding marker and reports comments whose fingerprints no longer exist in the current review result. It does not mutate GitHub state.
+The inline job also writes read-only stale debug artifacts. `reports/github/stale-plan.json` only considers comments carrying the hidden AI finding marker and reports comments whose fingerprints no longer exist in the current review result. The workflow then reads the first page of GraphQL review threads and writes `reports/github/stale-action-plan.json`, which maps stale marker-owned `github-actions[bot]` comments to unresolved review thread node IDs for a future opt-in resolve action. It does not mutate GitHub state.
 
 The workflow in `.github/workflows/evals.yml` runs the eval harness on:
 
@@ -342,6 +344,7 @@ Complete MVP:
 - manual opt-in PR summary comment upsert is available
 - opt-in inline PR comments are available behind summary-first gates
 - dry-run stale inline detection is available as a CI artifact
+- dry-run stale resolve enrichment is available as a CI artifact
 - same-repo PR summary artifacts use merge-base diff resolution
 - optional OpenAI-powered structured review output is supported when configured
 - committed sample and eval artifacts run in deterministic demo mode without credentials
@@ -352,7 +355,7 @@ Complete MVP:
 
 ## Future Improvements
 
-- non-destructive stale inline comment resolution
+- opt-in non-destructive stale inline comment resolution via GraphQL
 - richer prompt evaluation and reviewer tuning
 - React dashboard
 - ASP.NET Core API

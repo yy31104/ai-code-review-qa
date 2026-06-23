@@ -52,6 +52,12 @@ git diff --check
 - stale inline detection has no delete, resolve, patch, edit, or reply behavior
 - stale detection considers marker-owned comments only
 - `stale-plan.json` artifact contains no secrets
+- stale resolve enrichment is dry-run and has no GraphQL mutation
+- `reviewThreads(first: 100)` first-page enrichment is acceptable only for dry-run
+- future stale mutation PR must add pagination before resolving review threads
+- stale resolve eligibility requires marker plus `github-actions[bot]` author ownership
+- human comments and other-bot comments must not be eligible for stale actions
+- future stale resolve action must use its own opt-in variable
 - any future stale action is separately gated and non-destructive
 - same-repo PR workflows continue to avoid `pull_request_target`
 
