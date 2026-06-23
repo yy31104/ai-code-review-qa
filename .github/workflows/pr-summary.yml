@@ -229,6 +229,10 @@ jobs:
                           }
                         }
                       }
+                      pageInfo {
+                        hasNextPage
+                        endCursor
+                      }
                     }
                   }
                 }
@@ -279,4 +283,165 @@ jobs:
             reports/github/stale-plan.json
             reports/github/review-threads.json
             reports/github/stale-action-plan.json
+          if-no-files-found: warn
+
+  resolve-stale:
+    needs:
+      - build
+      - post-inline
+    if: ${{ always() && github.event.pull_request.head.repo.full_name == github.repository && needs.build.result == 'success' && vars.AI_REVIEW_STALE_ACTION == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Download PR summary artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: pr-summary-artifacts
+          path: .
+
+      - name: List existing PR review comments
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          mkdir -p reports/github
+          gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}/comments" \
+            --paginate > reports/github/existing-review-comments.json
+
+      - name: Build stale inline detection plan
+        continue-on-error: true
+        run: |
+          python backend/app/github_inline_stale.py \
+            --existing reports/github/existing-review-comments.json \
+            --fingerprints reports/github/finding-fingerprints.json > reports/github/stale-plan.json
+
+      - name: Fetch PR review threads
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          OWNER="${GITHUB_REPOSITORY%%/*}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+          gh api graphql --paginate --slurp \
+            -f owner="$OWNER" \
+            -f name="$REPO" \
+            -F number="$PR_NUMBER" \
+            -f query='
+              query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
+                repository(owner: $owner, name: $name) {
+                  pullRequest(number: $number) {
+                    reviewThreads(first: 100, after: $endCursor) {
+                      nodes {
+                        id
+                        isResolved
+                        isOutdated
+                        comments(first: 100) {
+                          nodes {
+                            databaseId
+                            author {
+                              login
+                            }
+                            body
+                          }
+                        }
+                      }
+                      pageInfo {
+                        hasNextPage
+                        endCursor
+                      }
+                    }
+                  }
+                }
+              }
+            ' > reports/github/review-threads.json
+
+      - name: Build stale resolve action plan
+        continue-on-error: true
+        run: |
+          python backend/app/github_inline_resolve_plan.py \
+            --stale reports/github/stale-plan.json \
+            --threads reports/github/review-threads.json > reports/github/stale-action-plan.json
+
+      - name: Select review threads to resolve
+        continue-on-error: true
+        run: |
+          python backend/app/github_inline_resolve_apply.py \
+            --plan reports/github/stale-action-plan.json > reports/github/resolve-apply.json
+
+      - name: Resolve stale review threads
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ ! -f reports/github/resolve-apply.json ]; then
+            echo "No resolve-apply.json (upstream step degraded); nothing to resolve."
+            exit 0
+          fi
+
+          python - <<'PY' > reports/github/thread-node-ids.txt
+          import json
+
+          with open("reports/github/resolve-apply.json", encoding="utf-8") as handle:
+              payload = json.load(handle)
+
+          for thread_node_id in payload.get("thread_node_ids", []):
+              if isinstance(thread_node_id, str) and thread_node_id:
+                  print(thread_node_id)
+          PY
+
+          RESOLVE_COUNT="$(python -c "import json; print(json.load(open('reports/github/resolve-apply.json', encoding='utf-8')).get('count', 0))")"
+          echo "Stale review threads selected for resolve: ${RESOLVE_COUNT}"
+          if [ "$RESOLVE_COUNT" -eq 0 ]; then
+            echo "No stale review threads to resolve."
+            exit 0
+          fi
+
+          while IFS= read -r THREAD_NODE_ID; do
+            if [ -z "$THREAD_NODE_ID" ]; then
+              continue
+            fi
+
+            if gh api graphql \
+              -f threadId="$THREAD_NODE_ID" \
+              -f query='
+                mutation($threadId: ID!) {
+                  resolveReviewThread(input: {threadId: $threadId}) {
+                    thread {
+                      id
+                      isResolved
+                    }
+                  }
+                }
+              ' > /dev/null; then
+              echo "Resolved stale review thread ${THREAD_NODE_ID}."
+            else
+              echo "::warning::Failed to resolve stale review thread ${THREAD_NODE_ID}; continuing."
+            fi
+          done < reports/github/thread-node-ids.txt
+
+      - name: Upload stale resolve debug artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: pr-stale-resolve
+          path: |
+            reports/github/existing-review-comments.json
+            reports/github/stale-plan.json
+            reports/github/review-threads.json
+            reports/github/stale-action-plan.json
+            reports/github/resolve-apply.json
+            reports/github/thread-node-ids.txt
           if-no-files-found: warn

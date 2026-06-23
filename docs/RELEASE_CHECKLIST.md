@@ -37,7 +37,7 @@ git diff --check
 - same-repo PR summary workflow does not use `pull_request_target`
 - same-repo gate skips fork PRs entirely
 - `AI_REVIEW_SUMMARY_AUTOPOST` default is off
-- `pull-requests: write` exists only in summary post and opt-in inline post jobs
+- `pull-requests: write` exists only in summary post, opt-in inline post, and opt-in stale resolve jobs
 - merge-base PR diff resolution is verified on a canary PR
 - summary upsert patches the same marker comment on synchronize
 - inline review payload artifact is generated when requested
@@ -52,13 +52,15 @@ git diff --check
 - stale inline detection has no delete, resolve, patch, edit, or reply behavior
 - stale detection considers marker-owned comments only
 - `stale-plan.json` artifact contains no secrets
-- stale resolve enrichment is dry-run and has no GraphQL mutation
-- `reviewThreads(first: 100)` first-page enrichment is acceptable only for dry-run
-- future stale mutation PR must add pagination before resolving review threads
+- inline stale resolve enrichment remains dry-run and has no GraphQL mutation
+- opt-in stale resolve job fetches review threads with GraphQL pagination before mutation
+- `AI_REVIEW_STALE_ACTION` default is off and is not created by the project
 - stale resolve eligibility requires marker plus `github-actions[bot]` author ownership
 - human comments and other-bot comments must not be eligible for stale actions
-- future stale resolve action must use its own opt-in variable
-- any future stale action is separately gated and non-destructive
+- stale resolve action uses its own opt-in variable
+- stale resolve action is separately gated and non-destructive
+- stale resolve action only calls GraphQL `resolveReviewThread`
+- stale resolve action never deletes, edits, replies to, or minimizes comments
 - same-repo PR workflows continue to avoid `pull_request_target`
 
 ## Inline Comment Canary

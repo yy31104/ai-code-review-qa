@@ -13,7 +13,7 @@ except ImportError:  # pragma: no cover - package import fallback
 BOT_AUTHOR = "github-actions[bot]"
 
 
-def build_resolve_plan(stale_plan: dict[str, Any], graphql_response: dict[str, Any]) -> dict[str, Any]:
+def build_resolve_plan(stale_plan: dict[str, Any], graphql_response: Any) -> dict[str, Any]:
     """Build a read-only future resolve plan for stale marker-owned bot comments."""
     comment_index = _index_review_thread_comments(graphql_response)
     stale_entries = stale_plan.get("stale", [])
@@ -45,8 +45,8 @@ def main() -> int:
 
     if not isinstance(stale_plan, dict):
         raise ValueError("--stale must point to a JSON object")
-    if not isinstance(graphql_response, dict):
-        raise ValueError("--threads must point to a JSON object")
+    if not isinstance(graphql_response, (dict, list)):
+        raise ValueError("--threads must point to a JSON object or slurped JSON array")
 
     plan = build_resolve_plan(stale_plan, graphql_response)
     json.dump(plan, sys.stdout, indent=2, ensure_ascii=True)
@@ -61,7 +61,7 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _index_review_thread_comments(graphql_response: dict[str, Any]) -> dict[str, dict[str, Any]]:
+def _index_review_thread_comments(graphql_response: Any) -> dict[str, dict[str, Any]]:
     index: dict[str, dict[str, Any]] = {}
     for thread in _review_thread_nodes(graphql_response):
         if not isinstance(thread, dict):
@@ -94,7 +94,16 @@ def _index_review_thread_comments(graphql_response: dict[str, Any]) -> dict[str,
     return index
 
 
-def _review_thread_nodes(graphql_response: dict[str, Any]) -> list[Any]:
+def _review_thread_nodes(graphql_response: Any) -> list[Any]:
+    if isinstance(graphql_response, list):
+        nodes: list[Any] = []
+        for page in graphql_response:
+            nodes.extend(_review_thread_nodes(page))
+        return nodes
+
+    if not isinstance(graphql_response, dict):
+        return []
+
     data = graphql_response.get("data", graphql_response)
     if not isinstance(data, dict):
         return []

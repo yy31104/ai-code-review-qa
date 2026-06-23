@@ -166,6 +166,53 @@ def test_duplicate_stale_entries_and_multiple_threads_are_deterministic() -> Non
     assert plan["total_stale"] == 3
 
 
+def test_slurped_paginated_review_threads_merge_nodes_in_order() -> None:
+    response = [
+        _graphql_response(_thread("thread-1", 101, body=_body(FINGERPRINT_ONE))),
+        _graphql_response(_thread("thread-2", 202, body=_body(FINGERPRINT_TWO))),
+    ]
+
+    plan = build_resolve_plan(_stale_plan(101, 202), response)
+
+    assert [action["thread_node_id"] for action in plan["actions"]] == ["thread-1", "thread-2"]
+    assert [action["reason"] for action in plan["actions"]] == ["eligible", "eligible"]
+    assert plan["eligible_count"] == 2
+
+
+def test_single_graphql_object_input_still_works() -> None:
+    plan = build_resolve_plan(_stale_plan(101), _graphql_response(_thread("thread-1", 101)))
+
+    assert plan["actions"][0]["thread_node_id"] == "thread-1"
+    assert plan["actions"][0]["reason"] == "eligible"
+
+
+def test_empty_and_malformed_slurped_pages_are_safe() -> None:
+    response = [
+        {},
+        {"data": None},
+        {"data": {"repository": {"pullRequest": {"reviewThreads": {"nodes": "not-a-list"}}}}},
+        ["not-a-page-object"],
+    ]
+
+    plan = build_resolve_plan(_stale_plan(101), response)
+
+    assert plan == {
+        "actions": [
+            {
+                "comment_id": 101,
+                "thread_node_id": None,
+                "is_resolved": None,
+                "author": "",
+                "marker_present": False,
+                "eligible": False,
+                "reason": "thread_not_found",
+            }
+        ],
+        "eligible_count": 0,
+        "total_stale": 1,
+    }
+
+
 def test_parses_nested_review_threads_comments_nodes() -> None:
     response = _graphql_response(
         {
