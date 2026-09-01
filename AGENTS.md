@@ -80,7 +80,7 @@ AI_REVIEW_MODE=static python backend/app/main.py --repo . --base HEAD~1 --head H
 - Prefer concise findings that are tied to the provided diff or changed file list.
 - Do not inflate the number of comments; prioritize high-confidence, actionable findings.
 - Findings should help a developer decide what to test, fix, or manually inspect.
-- Demo mode must remain safe, deterministic, and credential-free.
+- Static mode must remain safe, deterministic, and credential-free.
 - Provider failures must have an explicit failure status, contain no substituted static findings, and return a non-zero CLI status.
 
 ## Security rules
