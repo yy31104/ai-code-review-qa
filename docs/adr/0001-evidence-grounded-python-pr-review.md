@@ -94,7 +94,9 @@ spent), `heldout/` (frozen, never inspected before reporting). Every benchmark r
 hash, code revision, reviewer type, model, prompt version, config, raw output, grounding
 decisions, human labels, tokens, cost, latency.
 
-Publishable verdicts are entered by a person. The three committed verdict files were produced by
+Finding-level labels use `verdict` (`true_positive`, `false_positive`, `unsure`); recall-probe
+case labels use `adjudication` (`clean`, `missed_defect`, `unsure`). Publishable labels are entered
+by a person. The three committed finding-verdict files were produced by
 a model at the maintainer's explicit instruction and are only first-pass triage; the artifacts do
 not record annotator provenance, so they require human verification before any of them backs a
 published number.
@@ -152,7 +154,7 @@ corrected by not extending this layer, not by deleting it.
 | --- | --- | --- |
 | 1 | Publish the recovery branch to `main` | Public README carries no claim the repository cannot verify; CI green on the PR |
 | 2 | Complete the state model; finalize `static`; drop the TODO-marker heuristic | Each of the six states has a test and a smoke test asserting exit code and artifacts |
-| 3 | **Recall probe**: adjudicate 30 silently-reviewed commits | A committed verdict file records what the rules missed and a taxonomy of miss types |
+| 3 | **Recall probe**: adjudicate 30 silently-reviewed commits | A committed adjudication file records what the rules missed and a taxonomy of miss types |
 | 4 | Corpus selection study | Emission rate measured on ≥3 corpora of differing review rigour; held-out size derived from it |
 | 5 | Freeze the held-out benchmark | Split created and hashed before any result is read; documented as never inspected |
 | 6 | Provider instrumentation | A run is reproducible from its manifest; a budget overrun aborts before spending |
@@ -179,7 +181,7 @@ Build the recall probe (PR-3 tooling only, no adjudication):
 
 Add `evals/real_diffs.py recall-probe`. Given a harvested corpus and a manifest, sample N commits
 the reviewer reported nothing on, using a seed recorded in the output. For each, emit a row with
-the commit URL, subject, changed files, the full diff, an empty verdict, an empty `missed` list and
+the commit URL, subject, changed files, the full diff, an empty `adjudication`, an empty `missed` list and
 an empty `note`. A person marks the case `clean`, `missed_defect` or `unsure`. Each missed defect
 records its file, added line, category, one-line description, and `rule_scope`: the exact recorded
 rule id, `out_of_scope`, or `unsure`. These extra fields distinguish unreviewed cases from reviewed
@@ -196,7 +198,7 @@ where the reviewer emitted nothing and does not fully label the emitted-finding 
 The tooling can be implemented before PR-2, but the development sample must be regenerated and
 only then adjudicated after the TODO-marker heuristic is removed and the static rule inventory is final.
 
-Reuse the existing manifest binding, content-addressed ids, verdict validation and label-preserving
+Reuse the existing manifest binding, content-addressed ids, adjudication validation and label-preserving
 rerun. Do not generate `missed` entries. Do not change any rule. Tests must cover sampling
 determinism under a fixed seed, label preservation across reruns, and refusal to score a probe
 file whose manifest does not match.

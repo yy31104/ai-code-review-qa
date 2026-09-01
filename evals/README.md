@@ -120,9 +120,9 @@ python evals/real_diffs.py recall-score \
 
 `score` reads the verdicts back and reports precision with a 95% Wilson interval, split by anchor granularity and per rule. Rows left unjudged are excluded rather than assumed correct; unknown verdict spellings fail instead of disappearing from the counts. Re-running `review` preserves matching labels by content-addressed finding id and refuses to discard a label that no longer matches.
 
-`recall-probe` samples only successful static-review cases with zero emitted findings. Its first row binds the dataset, source manifest, reviewer source, seed, eligible population, exact rule inventory and scope definitions, scoring-harness hash, and immutable probe content. Every case starts with an empty verdict and empty `missed` list; the tool never invents a miss. `recall-score` rejects a wrong manifest, changed harness, changed diff, changed sample, invalid added-line anchor, or inconsistent label before reporting the silent-commit miss rate and descriptive rule-scope breakdown.
+`recall-probe` samples only successful static-review cases with zero emitted findings. Its first row binds the dataset, source manifest, reviewer source, seed, eligible population, exact rule inventory and scope definitions, scoring-harness hash, and immutable probe content. Every case starts with an empty `adjudication` and empty `missed` list; the tool never invents a miss. This case-level field is deliberately different from the finding-level `verdict` used by precision scoring. `recall-score` rejects a wrong manifest, changed harness, changed diff, changed sample, unknown schema field, invalid added-line anchor, or inconsistent adjudication before reporting the silent-commit miss rate and descriptive rule-scope breakdown.
 
-Read [`RECALL_LABELING_GUIDE.md`](RECALL_LABELING_GUIDE.md) before entering probe labels. An empty `missed` list is not clean until the case verdict is explicitly set to `clean`.
+Read [`RECALL_LABELING_GUIDE.md`](RECALL_LABELING_GUIDE.md) before entering probe labels. An empty `missed` list is not clean until the case adjudication is explicitly set to `clean`.
 
 Read [`LABELING_GUIDE.md`](LABELING_GUIDE.md) before entering verdicts. It fixes the meaning of an actionable true positive, separates line-level and file-level claims, and prevents the standard from changing after the findings are visible.
 

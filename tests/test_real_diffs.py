@@ -337,7 +337,7 @@ def test_recall_probe_allows_but_does_not_sample_abstained_cases(tmp_path: Path)
 def test_recall_probe_artifact_allows_labels_but_not_diff_changes(tmp_path: Path) -> None:
     _, cases, manifest = recall_inputs(tmp_path)
     _, rows = build_recall_probe(cases, manifest, count=2, seed=7)
-    labelled = [{**rows[0], "verdict": "clean", "note": "reviewed"}, rows[1]]
+    labelled = [{**rows[0], "adjudication": "clean", "note": "reviewed"}, rows[1]]
     changed = [{**rows[0], "diff": str(rows[0]["diff"]) + "\n"}, rows[1]]
 
     assert _probe_artifact_sha256(rows) == _probe_artifact_sha256(labelled)
@@ -350,12 +350,12 @@ def test_recall_probe_rerun_preserves_labels_and_refuses_to_drop_them(
     _, cases, manifest = recall_inputs(tmp_path)
     _, rows = build_recall_probe(cases, manifest, count=2, seed=7)
     existing = [dict(row) for row in rows]
-    existing[0]["verdict"] = "clean"
+    existing[0]["adjudication"] = "clean"
     existing[0]["note"] = "checked"
 
     merged = _merge_probe_adjudications(rows, existing)
 
-    assert merged[0]["verdict"] == "clean"
+    assert merged[0]["adjudication"] == "clean"
     assert merged[0]["note"] == "checked"
     with pytest.raises(ValueError, match="would discard adjudication"):
         _merge_probe_adjudications(rows[1:], existing)
@@ -381,11 +381,55 @@ def test_recall_score_rejects_a_probe_from_another_harness(tmp_path: Path) -> No
         _validate_probe_bundle(header, rows, manifest)
 
 
+def test_recall_score_rejects_v1_and_old_verdict_field(tmp_path: Path) -> None:
+    _, cases, manifest = recall_inputs(tmp_path)
+    header, rows = build_recall_probe(cases, manifest, count=1, seed=7)
+    header["schema_version"] = 1
+
+    with pytest.raises(ValueError, match="Unsupported recall probe schema"):
+        _validate_probe_bundle(header, rows, manifest)
+
+    old_row = dict(rows[0])
+    old_row["verdict"] = old_row.pop("adjudication")
+    with pytest.raises(ValueError, match=r"missing: adjudication.*unknown: verdict"):
+        score_recall_probe([old_row], header["rule_ids"])
+
+
+def test_recall_score_rejects_unknown_case_and_miss_fields(tmp_path: Path) -> None:
+    _, cases, manifest = recall_inputs(tmp_path)
+    header, rows = build_recall_probe(cases, manifest, count=1, seed=7)
+    header["unexpected"] = "not part of schema"
+
+    with pytest.raises(ValueError, match="unknown: unexpected"):
+        _validate_probe_bundle(header, rows, manifest)
+
+    header, rows = build_recall_probe(cases, manifest, count=1, seed=7)
+    rows[0]["unexpected"] = "not part of schema"
+
+    with pytest.raises(ValueError, match="unknown: unexpected"):
+        score_recall_probe(rows, header["rule_ids"])
+
+    _, rows = build_recall_probe(cases, manifest, count=1, seed=7)
+    rows[0]["adjudication"] = "missed_defect"
+    rows[0]["missed"] = [
+        {
+            "file": rows[0]["changed_files"][0],
+            "line": 1,
+            "category": "correctness",
+            "description": "A concrete missed defect.",
+            "rule_scope": OUT_OF_SCOPE,
+            "unexpected": "not part of schema",
+        }
+    ]
+    with pytest.raises(ValueError, match="unknown: unexpected"):
+        score_recall_probe(rows, header["rule_ids"])
+
+
 def test_recall_score_reports_miss_rate_categories_and_rule_scope(tmp_path: Path) -> None:
     _, cases, manifest = recall_inputs(tmp_path)
     header, rows = build_recall_probe(cases, manifest, count=3, seed=9)
-    rows[0]["verdict"] = "clean"
-    rows[1]["verdict"] = "missed_defect"
+    rows[0]["adjudication"] = "clean"
+    rows[1]["adjudication"] = "missed_defect"
     rows[1]["missed"] = [
         {
             "file": rows[1]["changed_files"][0],
@@ -395,7 +439,7 @@ def test_recall_score_reports_miss_rate_categories_and_rule_scope(tmp_path: Path
             "rule_scope": header["rule_ids"][0],
         }
     ]
-    rows[2]["verdict"] = "missed_defect"
+    rows[2]["adjudication"] = "missed_defect"
     rows[2]["missed"] = [
         {
             "file": rows[2]["changed_files"][0],
@@ -441,29 +485,29 @@ def test_recall_score_does_not_treat_an_unjudged_empty_list_as_clean(
 def test_recall_score_requires_an_explanation_for_unsure(tmp_path: Path) -> None:
     _, cases, manifest = recall_inputs(tmp_path)
     header, rows = build_recall_probe(cases, manifest, count=1, seed=3)
-    rows[0]["verdict"] = "unsure"
+    rows[0]["adjudication"] = "unsure"
 
     with pytest.raises(ValueError, match="must explain why"):
         score_recall_probe(rows, header["rule_ids"])
 
 
 @pytest.mark.parametrize(
-    ("verdict", "missed", "message"),
+    ("adjudication", "missed", "message"),
     [
         ("clean", [{"anything": "present"}], "clean but contains"),
         ("missed_defect", [], "missed_defect but its missed list is empty"),
-        ("typo", [], "Invalid recall verdict"),
+        ("typo", [], "Invalid recall adjudication"),
     ],
 )
 def test_recall_score_rejects_inconsistent_case_labels(
     tmp_path: Path,
-    verdict: str,
+    adjudication: str,
     missed: list[dict[str, object]],
     message: str,
 ) -> None:
     _, cases, manifest = recall_inputs(tmp_path)
     header, rows = build_recall_probe(cases, manifest, count=1, seed=3)
-    rows[0]["verdict"] = verdict
+    rows[0]["adjudication"] = adjudication
     rows[0]["missed"] = missed
 
     with pytest.raises(ValueError, match=message):
@@ -473,7 +517,7 @@ def test_recall_score_rejects_inconsistent_case_labels(
 def test_recall_score_rejects_unknown_scope_and_non_added_lines(tmp_path: Path) -> None:
     _, cases, manifest = recall_inputs(tmp_path)
     header, rows = build_recall_probe(cases, manifest, count=1, seed=3)
-    rows[0]["verdict"] = "missed_defect"
+    rows[0]["adjudication"] = "missed_defect"
     miss = {
         "file": rows[0]["changed_files"][0],
         "line": 1,

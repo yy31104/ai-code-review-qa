@@ -133,7 +133,7 @@ Two things the numbers make concrete for the next step:
 - At 0.008 findings per commit, reaching thirty judged findings needs roughly 3,600 commits. A held-out corpus has to be far larger than 120, or drawn from code that is reviewed less rigorously than these three libraries.
 - 119 of 120 commits produced no finding. Four of those runs were `abstained` because they had no readable added Python lines; the remaining 115 completed-silent commits form the recall-probe population. These are output-volume and input-state facts, not evidence that the silent commits were clean.
 
-`recall-probe` creates that deterministic silent-commit sample without filling any labels, and `recall-score` reports the human-recorded miss rate and rule-scope breakdown. Despite the command name, this is a miss audit rather than classical `TP / (TP + FN)` recall. See [`evals/RECALL_LABELING_GUIDE.md`](evals/RECALL_LABELING_GUIDE.md).
+`recall-probe` creates that deterministic silent-commit sample with an empty case-level `adjudication`; this is intentionally separate from the finding-level `verdict` used above. `recall-score` reports the human-recorded miss rate and rule-scope breakdown. Despite the command name, this is a miss audit rather than classical `TP / (TP + FN)` recall. See [`evals/RECALL_LABELING_GUIDE.md`](evals/RECALL_LABELING_GUIDE.md).
 
 ## What the repository verifies
 

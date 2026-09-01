@@ -53,8 +53,8 @@ MAX_DIFF_CHARS = 20000
 #: judge it without opening the repository.
 CONTEXT_RADIUS = 3
 VERDICTS = ("true_positive", "false_positive", "unsure")
-PROBE_VERDICTS = ("clean", "missed_defect", "unsure")
-PROBE_SCHEMA_VERSION = 1
+PROBE_ADJUDICATIONS = ("clean", "missed_defect", "unsure")
+PROBE_SCHEMA_VERSION = 2
 OUT_OF_SCOPE = "out_of_scope"
 SCOPE_UNSURE = "unsure"
 STATIC_SUCCESS_STATUSES = frozenset({"completed"})
@@ -79,7 +79,42 @@ REVIEWER_SOURCE_PATHS = (
     APP_DIR / "static_review.py",
 )
 ADJUDICATION_FIELDS = frozenset({"verdict", "note"})
-PROBE_ADJUDICATION_FIELDS = frozenset({"verdict", "missed", "note"})
+PROBE_ADJUDICATION_FIELDS = frozenset({"adjudication", "missed", "note"})
+PROBE_HEADER_FIELDS = frozenset(
+    {
+        "record_type",
+        "schema_version",
+        "source_manifest_sha256",
+        "dataset_sha256",
+        "reviewer_sha256",
+        "probe_harness_sha256",
+        "seed",
+        "requested_count",
+        "eligible_count",
+        "sampled_count",
+        "rule_ids",
+        "rule_scopes",
+        "probe_artifact",
+    }
+)
+PROBE_CASE_FIELDS = frozenset(
+    {
+        "record_type",
+        "probe_id",
+        "case_id",
+        "commit_url",
+        "subject",
+        "changed_files",
+        "diff",
+        "adjudication",
+        "missed",
+        "note",
+    }
+)
+PROBE_MISS_FIELDS = frozenset(
+    {"file", "line", "category", "description", "rule_scope"}
+)
+PROBE_ARTIFACT_FIELDS = frozenset({"count", "sha256"})
 
 
 # ---------------------------------------------------------------------------
@@ -732,7 +767,7 @@ def build_recall_probe(
                 "changed_files": case["changed_files"],
                 "diff": case["diff"],
                 # Human-owned fields. The tool never generates a missed defect.
-                "verdict": "",
+                "adjudication": "",
                 "missed": [],
                 "note": "",
             }
@@ -775,6 +810,22 @@ def _split_probe_records(
     return records[0], rows
 
 
+def _validate_exact_fields(
+    record: dict[str, Any], expected: frozenset[str], label: str
+) -> None:
+    missing = sorted(expected - set(record))
+    unknown = sorted(set(record) - expected)
+    if not missing and not unknown:
+        return
+
+    details: list[str] = []
+    if missing:
+        details.append(f"missing: {', '.join(missing)}")
+    if unknown:
+        details.append(f"unknown: {', '.join(unknown)}")
+    raise ValueError(f"{label} fields do not match the recall probe schema ({'; '.join(details)}).")
+
+
 def _validate_probe_labels(rows: list[dict[str, Any]], rule_ids: list[str]) -> None:
     from diff_index import normalize_path, parse_unified_diff
 
@@ -782,30 +833,34 @@ def _validate_probe_labels(rows: list[dict[str, Any]], rule_ids: list[str]) -> N
     seen_ids: set[str] = set()
     for position, row in enumerate(rows, start=1):
         probe_id = str(row.get("probe_id") or f"row {position}")
+        _validate_exact_fields(row, PROBE_CASE_FIELDS, probe_id)
         if probe_id in seen_ids:
             raise ValueError(f"Duplicate probe_id value: {probe_id}")
         seen_ids.add(probe_id)
 
-        verdict = row.get("verdict", "")
-        if verdict not in {"", *PROBE_VERDICTS}:
+        adjudication = row.get("adjudication", "")
+        if adjudication not in {"", *PROBE_ADJUDICATIONS}:
             raise ValueError(
-                f"Invalid recall verdict {verdict!r} on {probe_id}. Expected an empty string "
-                f"or one of: {', '.join(PROBE_VERDICTS)}"
+                f"Invalid recall adjudication {adjudication!r} on {probe_id}. "
+                f"Expected an empty string or one of: {', '.join(PROBE_ADJUDICATIONS)}"
             )
         note = row.get("note", "")
         if not isinstance(note, str):
             raise ValueError(f"{probe_id} note must be a string.")
-        if verdict == "unsure" and not note.strip():
+        if adjudication == "unsure" and not note.strip():
             raise ValueError(f"{probe_id} is unsure and must explain why in note.")
         missed = row.get("missed")
         if not isinstance(missed, list):
             raise ValueError(f"{probe_id} must contain a missed list.")
-        if verdict == "clean" and missed:
+        if adjudication == "clean" and missed:
             raise ValueError(f"{probe_id} is clean but contains missed defects.")
-        if verdict == "missed_defect" and not missed:
+        if adjudication == "missed_defect" and not missed:
             raise ValueError(f"{probe_id} is missed_defect but its missed list is empty.")
-        if verdict in {"", "unsure"} and missed:
-            raise ValueError(f"{probe_id} cannot contain missed defects with verdict {verdict!r}.")
+        if adjudication in {"", "unsure"} and missed:
+            raise ValueError(
+                f"{probe_id} cannot contain missed defects with adjudication "
+                f"{adjudication!r}."
+            )
 
         diff_index = parse_unified_diff(str(row.get("diff") or ""))
         changed_files = {normalize_path(str(path)) for path in row.get("changed_files", [])}
@@ -814,6 +869,7 @@ def _validate_probe_labels(rows: list[dict[str, Any]], rule_ids: list[str]) -> N
             label = f"{probe_id} missed[{miss_number}]"
             if not isinstance(miss, dict):
                 raise ValueError(f"{label} must be an object.")
+            _validate_exact_fields(miss, PROBE_MISS_FIELDS, label)
             file = miss.get("file")
             line = miss.get("line")
             category = miss.get("category")
@@ -854,6 +910,7 @@ def _validate_probe_bundle(
     rows: list[dict[str, Any]],
     manifest: dict[str, Any],
 ) -> None:
+    _validate_exact_fields(header, PROBE_HEADER_FIELDS, "Recall probe header")
     if header.get("schema_version") != PROBE_SCHEMA_VERSION:
         raise ValueError(f"Unsupported recall probe schema: {header.get('schema_version')!r}")
     if header.get("source_manifest_sha256") != _canonical_sha256(manifest):
@@ -908,6 +965,7 @@ def _validate_probe_bundle(
     artifact = header.get("probe_artifact")
     if not isinstance(artifact, dict) or artifact.get("count") != len(rows):
         raise ValueError("Recall probe header does not bind the case-record count.")
+    _validate_exact_fields(artifact, PROBE_ARTIFACT_FIELDS, "Recall probe artifact")
     if artifact.get("sha256") != _probe_artifact_sha256(rows):
         raise ValueError("Recall probe immutable content hash does not match its header.")
 
@@ -943,7 +1001,7 @@ def _merge_probe_adjudications(
     labelled = {
         str(row["probe_id"]): row
         for row in existing_rows
-        if row.get("verdict") or row.get("missed") or row.get("note")
+        if row.get("adjudication") or row.get("missed") or row.get("note")
     }
     new_ids = {str(row["probe_id"]) for row in rows}
     orphaned = sorted(set(labelled) - new_ids)
@@ -968,10 +1026,14 @@ def _merge_probe_adjudications(
 def score_recall_probe(rows: list[dict[str, Any]], rule_ids: list[str]) -> dict[str, Any]:
     """Summarize a silent-commit miss audit; this is not classical recall."""
     _validate_probe_labels(rows, rule_ids)
-    judged = [row for row in rows if row.get("verdict") in {"clean", "missed_defect"}]
-    unsure = [row for row in rows if row.get("verdict") == "unsure"]
-    unjudged = [row for row in rows if not row.get("verdict")]
-    commits_with_misses = sum(1 for row in judged if row["verdict"] == "missed_defect")
+    judged = [
+        row for row in rows if row.get("adjudication") in {"clean", "missed_defect"}
+    ]
+    unsure = [row for row in rows if row.get("adjudication") == "unsure"]
+    unjudged = [row for row in rows if not row.get("adjudication")]
+    commits_with_misses = sum(
+        1 for row in judged if row["adjudication"] == "missed_defect"
+    )
     miss_low, miss_high = wilson_interval(commits_with_misses, len(judged))
     misses = [miss for row in judged for miss in row["missed"]]
 
@@ -1164,7 +1226,7 @@ def _cmd_recall_probe(args: argparse.Namespace) -> int:
         f"with seed {args.seed}."
     )
     print(f"  probe: {args.out}")
-    print('Set "verdict" on each case to clean, missed_defect, or unsure.')
+    print('Set "adjudication" on each case to clean, missed_defect, or unsure.')
     print("The tool leaves every missed list empty; a person must supply missed defects.")
     return 0
 
