@@ -10,3 +10,10 @@ build/
 reports/evals/
 reports/github/
 .DS_Store
+
+# Harvested real-diff corpora. The diffs belong to their upstream projects, so
+# they are regenerated locally from `evals/real_diffs.py harvest` rather than
+# committed. Adjudicated verdicts are keyed by commit SHA and can be committed.
+evals/data/real_diffs/*.jsonl
+evals/data/real_diffs/*.json
+!evals/data/real_diffs/verdicts*.jsonl
