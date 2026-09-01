@@ -26,6 +26,8 @@ In OpenAI mode, the changed-file list and git diff are sent to the OpenAI Respon
 
 API keys are loaded at runtime and must not be printed to logs, reports, fixtures, or other committed artifacts.
 
+Git ignore rules do not protect ad-hoc archives. Before sharing a ZIP or copying the project directory, explicitly exclude `.env`, virtual environments, generated reports, and other local credential files.
+
 Do not run private or proprietary repositories in OpenAI mode without authorization. Do not commit reports generated from private code.
 
 ## Report Artifact Safety
@@ -62,9 +64,9 @@ The no-store boundary still holds for this tool: it does not add a database, ser
 
 ## OpenAI Optional-Mode Boundary
 
-OpenAI mode is off by default. API, configuration, or schema-validation failures fall back to demo mode with a warning in the report summary.
+OpenAI mode is off by default. API, configuration, and schema-validation failures receive distinct `review_status` values, produce no substituted demo findings or GitHub artifacts, and make the CLI return status `2` after saving the failure report.
 
-OpenAI output is validated with the Pydantic `ReviewResult` schema before report generation.
+OpenAI output is validated with the Pydantic `ReviewResult` schema before report generation. Structural validation does not establish semantic correctness.
 
 This project does not control OpenAI data retention, account settings, or organization policy.
 

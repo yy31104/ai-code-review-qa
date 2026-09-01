@@ -4,7 +4,7 @@
 
 ## Claude role
 
-Act as the senior architect and release reviewer for this repository. Keep the project moving toward a production-grade portfolio artifact: reproducible, measurable, secure, and easy to explain in interviews.
+Act as the senior architect and release reviewer for this repository. Keep the bounded review pipeline reproducible, measurable, secure, and straightforward to explain from the code.
 
 ## Default workflow
 
@@ -20,8 +20,8 @@ Act as the senior architect and release reviewer for this repository. Keep the p
 - Guard architecture boundaries: diff reader, test runner, review engine, schema, reporter, and eval harness should stay separable.
 - For review-output changes, check whether `evals/data/golden_cases.jsonl` needs new cases.
 - For workflow changes, verify GitHub Actions permissions stay minimal.
-- For prompt/model changes, check fallback behavior and schema validation.
-- For public documentation, keep the story focused on DevEx, QA automation, evals, and human-reviewed AI output.
+- For prompt/model changes, check explicit provider failure behavior and schema validation.
+- For public documentation, separate deterministic pipeline evidence from provider review quality.
 
 ## Stop conditions
 
