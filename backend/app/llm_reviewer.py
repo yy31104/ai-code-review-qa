@@ -5,13 +5,27 @@ import re
 from textwrap import dedent
 
 from dotenv import load_dotenv
+from pydantic import ValidationError
 
-from diff_index import parse_unified_diff, resolve_anchor
-from schemas import Finding, ReviewResult, TestResult
+from diff_index import parse_unified_diff
+from finding_grounding import ground_findings
+from schemas import (
+    REVIEW_FAILURE_STATUSES,
+    Finding,
+    ProviderReview,
+    ReviewResult,
+    ReviewStatus,
+    TestResult,
+)
+from static_review import AnalysisResult, analyze_diff
 
 
 DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 MAX_DIFF_CHARS = 20000
+# Bumped whenever the system prompt changes. Any evaluation result is only
+# comparable with another result produced under the same prompt version.
+REVIEW_PROMPT_VERSION = "2026-09-01.1"
+MAX_SUMMARY_LIST_ITEMS = 10
 NEEDS_HUMAN_REVIEW = "needs_human_review"
 REVIEW_RECOMMENDED = "review_recommended"
 LOOKS_GOOD = "looks_good"
@@ -34,6 +48,14 @@ RISKY_TERMS = {
 # camelCase/PascalCase boundaries before lowercasing, so "authToken" yields
 # {"auth", "token"} while "author" and "tokenizer" stay single tokens.
 _IDENTIFIER_TOKEN_RE = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|[0-9]+")
+
+
+class ReviewConfigurationError(RuntimeError):
+    """Raised when provider mode was requested but is not configured."""
+
+
+class InvalidReviewOutputError(ValueError):
+    """Raised when a provider response is not a validated review result."""
 
 
 def derive_decision(risk_level: str, test_result: TestResult) -> tuple[str, str]:
@@ -71,6 +93,19 @@ def derive_decision(risk_level: str, test_result: TestResult) -> tuple[str, str]
     )
 
 
+def derive_final_decision(review: ReviewResult, test_result: TestResult) -> tuple[str, str]:
+    """Apply provider-status gating before the deterministic risk/test decision."""
+    if review.review_status in REVIEW_FAILURE_STATUSES:
+        return (
+            NEEDS_HUMAN_REVIEW,
+            (
+                f"The requested review did not complete ({review.review_status}). "
+                "No model findings were produced; resolve the failure and rerun before merging."
+            ),
+        )
+    return derive_decision(review.risk_level, test_result)
+
+
 def review_diff(diff: str, changed_files: list[str]) -> ReviewResult:
     """Return a structured code review.
 
@@ -84,37 +119,163 @@ def review_diff(diff: str, changed_files: list[str]) -> ReviewResult:
         return _demo_review(diff, changed_files)
 
     if mode != "openai":
-        return _demo_review(
-            diff,
-            changed_files,
-            warning=f"Unknown AI_REVIEW_MODE={mode!r}; falling back to demo mode.",
+        return _failed_review(
+            diff=diff,
+            changed_files=changed_files,
+            mode=mode,
+            status="configuration_error",
+            detail="AI_REVIEW_MODE must be either 'demo' or 'openai'.",
         )
 
     try:
         return _review_with_openai(diff, changed_files)
+    except ReviewConfigurationError as exc:
+        return _failed_review(
+            diff=diff,
+            changed_files=changed_files,
+            mode="openai",
+            status="configuration_error",
+            detail=str(exc),
+            model=_configured_openai_model(),
+        )
+    except (InvalidReviewOutputError, ValidationError):
+        return _failed_review(
+            diff=diff,
+            changed_files=changed_files,
+            mode="openai",
+            status="invalid_output",
+            detail="OpenAI returned output that did not validate as ProviderReview.",
+            model=_configured_openai_model(),
+        )
     except Exception as exc:
-        return _demo_review(
-            diff,
-            changed_files,
-            warning=f"OpenAI review failed ({exc}); falling back to demo mode.",
+        return _failed_review(
+            diff=diff,
+            changed_files=changed_files,
+            mode="openai",
+            status="provider_failed",
+            detail=f"OpenAI request failed with {type(exc).__name__}.",
+            model=_configured_openai_model(),
         )
 
 
-def _demo_review(diff: str, changed_files: list[str], warning: str | None = None) -> ReviewResult:
-    payload = mock_review_json(diff, changed_files)
-    payload["review_mode"] = "demo"
-    payload["review_model"] = None
-    if warning:
-        payload["project_summary"] = f"{payload['project_summary']} Warning: {warning}"
-    return ReviewResult(**payload)
+def _demo_review(diff: str, changed_files: list[str]) -> ReviewResult:
+    """Review the diff with deterministic rules only. No model is called.
+
+    Every finding here comes from a named rule in `static_review` and is
+    anchored to an added line with that line as evidence. A diff that matches
+    no rule produces no findings; the reviewer stays silent rather than filling
+    the report with generic advice.
+    """
+    analysis = analyze_diff(diff, changed_files)
+    findings = [
+        Finding(
+            file=match.path,
+            line=match.line,
+            side="RIGHT",
+            category=match.category,
+            severity=match.severity,
+            confidence=match.confidence,
+            message=match.message,
+            rule_id=match.rule_id,
+            evidence=match.evidence,
+        )
+        for match in analysis.matches
+    ]
+    risk_level = escalate_risk(_estimate_risk(diff, changed_files), findings)
+    review_decision, human_review_decision = derive_decision(risk_level, TestResult())
+
+    return ReviewResult(
+        review_mode="demo",
+        review_status="demo",
+        review_source="demo_rules",
+        review_status_detail=None,
+        review_model=None,
+        project_summary=_summarize_analysis(analysis, changed_files),
+        changed_files=changed_files,
+        risk_level=risk_level,
+        findings=findings,
+        automated_test_results=TestResult(project_type="not run"),
+        review_decision=review_decision,
+        human_review_decision=human_review_decision,
+        **project_finding_lists(findings, analysis=analysis),
+    )
+
+
+def _failed_review(
+    *,
+    diff: str,
+    changed_files: list[str],
+    mode: str,
+    status: ReviewStatus,
+    detail: str,
+    model: str | None = None,
+) -> ReviewResult:
+    """Return an auditable failure artifact without substituting demo findings."""
+    test_result = TestResult(project_type="not run")
+    return ReviewResult(
+        review_mode=mode,
+        review_status=status,
+        review_source="none",
+        review_status_detail=detail,
+        review_model=model,
+        project_summary=(
+            f"The requested review did not complete ({status}). "
+            "No model findings were produced."
+        ),
+        changed_files=changed_files,
+        risk_level=_estimate_risk(diff, changed_files),
+        automated_test_results=test_result,
+        recommended_actions=[
+            "Resolve the review status error and rerun the same diff.",
+            "Do not treat this artifact as a completed provider-backed review.",
+        ],
+        review_decision=NEEDS_HUMAN_REVIEW,
+        human_review_decision=(
+            f"The requested review did not complete ({status}); "
+            "a developer must review the diff directly."
+        ),
+    )
+
+
+SYSTEM_PROMPT = dedent(
+    """
+    You review one git diff and propose findings for a human reviewer. You do
+    not decide whether the change is safe to merge, and nothing you return is
+    published without a person approving it.
+
+    Rules for every finding you return:
+
+    - Only report something you can point at in the provided diff. Set `file` to
+      a path from the changed-file list and `line` to a line number that the
+      diff adds on the right side.
+    - Set `evidence` to the exact added line you are describing, copied
+      verbatim from the diff. A finding whose evidence does not match that line
+      is discarded by the caller.
+    - Prefer a short list of specific findings over broad advice. Do not restate
+      general good practice that this diff does not show a problem with. An
+      empty findings list is the correct answer for a clean diff.
+    - Valid categories: possible_bug, security_reliability, missing_test,
+      suggested_test, recommended_action. Valid severities: info, low, medium,
+      high. Set `confidence` to how sure you are that the finding is real.
+    - Use side RIGHT for anything on added or modified code.
+
+    `project_summary` is one or two sentences describing what the diff does.
+    """
+).strip()
 
 
 def _review_with_openai(diff: str, changed_files: list[str]) -> ReviewResult:
+    """Ask the provider for proposed findings, then ground them against the diff.
+
+    The provider fills `ProviderReview` only: a summary and a list of proposed
+    findings. Risk level, status, provenance and the review decision are
+    computed here, so a model response cannot move the merge gate by itself.
+    """
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is not set")
+        raise ReviewConfigurationError("OPENAI_API_KEY is not set.")
 
-    model = os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL).strip() or DEFAULT_OPENAI_MODEL
+    model = _configured_openai_model()
 
     from openai import OpenAI
 
@@ -122,36 +283,7 @@ def _review_with_openai(diff: str, changed_files: list[str]) -> ReviewResult:
     response = client.responses.parse(
         model=model,
         input=[
-            {
-                "role": "system",
-                "content": dedent(
-                    """
-                    You are an AI code review assistant. Return only structured
-                    JSON matching the ReviewResult schema. Keep findings concise,
-                    practical, and grounded in the provided git diff.
-
-                    Set changed_files to the provided changed file list.
-                    Set findings to a concise list of structured finding
-                    objects. Each finding must include category, severity,
-                    confidence, message, side, and optional file/line when the
-                    finding can be tied to a changed file. Use side RIGHT for
-                    findings on added or modified code. Valid categories are
-                    possible_bug, security_reliability, missing_test,
-                    suggested_test, and recommended_action. Valid severities
-                    are info, low, medium, and high.
-                    Set review_decision from risk_level before tests run:
-                    High -> needs_human_review, Medium -> review_recommended,
-                    Low -> looks_good.
-                    Keep human_review_decision human-in-the-loop and mention that
-                    a developer should verify the AI findings before merging.
-
-                    The automated_test_results field is a placeholder and will
-                    be replaced by the CLI after tests run. The CLI will also
-                    recompute review_decision and human_review_decision from
-                    risk_level plus the real automated test result.
-                    """
-                ).strip(),
-            },
+            {"role": "system", "content": SYSTEM_PROMPT},
             {
                 "role": "user",
                 "content": dedent(
@@ -165,199 +297,181 @@ def _review_with_openai(diff: str, changed_files: list[str]) -> ReviewResult:
                 ).strip(),
             },
         ],
-        text_format=ReviewResult,
+        text_format=ProviderReview,
     )
 
     parsed = response.output_parsed
-    if not isinstance(parsed, ReviewResult):
-        raise ValueError("OpenAI response did not parse into ReviewResult")
+    if not isinstance(parsed, ProviderReview):
+        raise InvalidReviewOutputError("OpenAI response did not parse into ProviderReview")
 
-    parsed.review_mode = "openai"
-    parsed.review_model = model
-    parsed.review_decision, parsed.human_review_decision = derive_decision(
-        parsed.risk_level,
-        parsed.automated_test_results,
-    )
-    return parsed
+    proposed = [finding.to_finding() for finding in parsed.findings]
+    grounded, rejected = ground_findings(proposed, parse_unified_diff(diff))
 
-
-def mock_review_json(diff: str, changed_files: list[str]) -> dict:
-    """Build the structured payload a real LLM call will replace."""
-    risk_level = _estimate_risk(diff, changed_files)
-    has_tests = any("test" in f.lower() for f in changed_files)
-
-    non_test = [f.split("/")[-1] for f in changed_files if "test" not in f.lower()]
-    primary = non_test[0] if non_test else (changed_files[0].split("/")[-1] if changed_files else "the changed file")
-
-    if changed_files:
-        summary = (
-            f"Reviewed {len(changed_files)} changed file(s) via the AI review engine. "
-            "Running in demo mode using structured AI review output."
-        )
-    else:
-        summary = "No changed files were detected by git diff. Running in demo mode using structured AI review output."
-
-    possible_bugs = [
-        f"`{primary}`: validate inputs at function boundaries - check for None, empty values, and unexpected types.",
-        "Error paths may fail silently; confirm each failure branch returns a descriptive message or raises a typed exception.",
-    ]
-    if not diff and changed_files:
-        possible_bugs.append(
-            "Files appear untracked in git - diff is empty, so line-level analysis is limited for this change set."
-        )
-
-    missing_tests = []
-    if not has_tests:
-        missing_tests.append(
-            f"No test files detected in the changed set. Consider adding tests alongside `{primary}`."
-        )
-    missing_tests.append(
-        "Boundary-value coverage is missing: add tests for min/max inputs, empty collections, and off-by-one conditions."
-    )
-    suggested_test_cases = [
-        f"Happy-path: call the primary function in `{primary}` with valid inputs and assert the expected return value.",
-        "Invalid-input: pass None, an empty string, or an out-of-range value and assert a clear error is raised.",
-        "Regression: add a test that pins any behavior this change is specifically intended to fix or improve.",
-    ]
-    security_reliability_concerns = [
-        "Do not log secrets, tokens, or user-identifiable data - scrub sensitive fields before writing to any log sink.",
-        "Wrap subprocess calls and external I/O in try/except to prevent unhandled exceptions from crashing the process.",
-    ]
-    recommended_actions = [
-        "Address the possible bugs listed above before requesting a final review.",
-        "Ensure all automated tests pass in CI before merging.",
-        "Expand test coverage around the highest-risk code paths identified in this report.",
-    ]
-
-    test_result = TestResult(
-        project_type="not run",
-        command="",
-        passed=False,
-        exit_code=0,
-        output="",
-        error=None,
-        test_summary="",
-    )
-    test_payload = test_result.model_dump() if hasattr(test_result, "model_dump") else test_result.dict()
-    review_decision, human_review_decision = derive_decision(risk_level, test_result)
-    findings = _build_findings(
-        diff=diff,
+    risk_level = escalate_risk(_estimate_risk(diff, changed_files), grounded)
+    review = ReviewResult(
+        review_mode="openai",
+        review_status="completed",
+        review_source="provider",
+        review_status_detail=_grounding_detail(grounded, rejected),
+        review_model=model,
+        project_summary=parsed.project_summary,
         changed_files=changed_files,
         risk_level=risk_level,
-        possible_bugs=possible_bugs,
-        security_reliability_concerns=security_reliability_concerns,
-        missing_tests=missing_tests,
-        suggested_test_cases=suggested_test_cases,
-        recommended_actions=recommended_actions,
+        findings=grounded,
+        rejected_findings=rejected,
+        automated_test_results=TestResult(project_type="not run"),
+        review_decision=NEEDS_HUMAN_REVIEW,
+        human_review_decision="pending",
+        **project_finding_lists(grounded),
+    )
+    review.review_decision, review.human_review_decision = derive_final_decision(
+        review,
+        review.automated_test_results,
+    )
+    return review
+
+
+def _grounding_detail(grounded: list[Finding], rejected: list[Finding]) -> str | None:
+    """Describe grounding losses so a clean-looking run is not silently thin."""
+    if not rejected:
+        return None
+    reasons = sorted({finding.grounding_rejection or "unknown" for finding in rejected})
+    return (
+        f"Grounding kept {len(grounded)} of {len(grounded) + len(rejected)} proposed "
+        f"findings; rejected: {', '.join(reasons)}."
     )
 
-    return {
-        "project_summary": summary,
-        "changed_files": changed_files,
-        "risk_level": risk_level,
-        "possible_bugs": possible_bugs,
-        "missing_tests": missing_tests,
-        "suggested_test_cases": suggested_test_cases,
-        "security_reliability_concerns": security_reliability_concerns,
-        "findings": [
-            finding.model_dump() if hasattr(finding, "model_dump") else finding.dict()
-            for finding in findings
-        ],
-        "automated_test_results": test_payload,
-        "recommended_actions": recommended_actions,
-        "review_decision": review_decision,
-        "human_review_decision": human_review_decision,
+
+def _configured_openai_model() -> str:
+    return os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL).strip() or DEFAULT_OPENAI_MODEL
+
+
+_LIST_FIELD_BY_CATEGORY = {
+    "possible_bug": "possible_bugs",
+    "security_reliability": "security_reliability_concerns",
+    "missing_test": "missing_tests",
+    "suggested_test": "suggested_test_cases",
+}
+_SEVERITY_RANK = {"info": 0, "low": 1, "medium": 2, "high": 3}
+
+
+def _locate(finding: Finding) -> str:
+    if finding.file and finding.line is not None:
+        return f"{finding.file}:{finding.line}"
+    if finding.file:
+        return finding.file
+    return "change set"
+
+
+def project_finding_lists(
+    findings: list[Finding],
+    *,
+    analysis: AnalysisResult | None = None,
+) -> dict[str, list[str]]:
+    """Project findings onto the flat lists the report renders.
+
+    `findings` is the single source of truth. These lists are a view of it, so
+    the report can never show a concern that is not backed by a finding.
+    """
+    lists: dict[str, list[str]] = {
+        "possible_bugs": [],
+        "security_reliability_concerns": [],
+        "missing_tests": [],
+        "suggested_test_cases": [],
     }
 
+    for finding in findings:
+        field = _LIST_FIELD_BY_CATEGORY.get(finding.category)
+        if field is None:
+            continue
+        lists[field].append(f"{_locate(finding)} - {finding.message}")
 
-def _build_findings(
-    *,
-    diff: str,
-    changed_files: list[str],
-    risk_level: str,
-    possible_bugs: list[str],
-    security_reliability_concerns: list[str],
-    missing_tests: list[str],
-    suggested_test_cases: list[str],
-    recommended_actions: list[str],
-) -> list[Finding]:
-    diff_index = parse_unified_diff(diff)
-    primary_file = _primary_changed_file(changed_files)
-
-    possible_bug_severity = "medium" if risk_level in {"High", "Medium"} else "low"
-    security_severity = "high" if risk_level == "High" else "medium"
-    findings: list[Finding] = []
-
-    for message in possible_bugs:
-        findings.append(
-            Finding(
-                file=primary_file,
-                line=resolve_anchor(diff_index, primary_file),
-                category="possible_bug",
-                severity=possible_bug_severity,
-                confidence=0.5,
-                message=message,
-            )
+    for finding in findings:
+        if finding.category != "missing_test":
+            continue
+        lists["suggested_test_cases"].append(
+            f"{_locate(finding)} - add a test that covers at least one failure path "
+            "of the code added here."
         )
 
-    for message in security_reliability_concerns:
-        findings.append(
-            Finding(
-                file=primary_file,
-                line=resolve_anchor(diff_index, primary_file),
-                category="security_reliability",
-                severity=security_severity,
-                confidence=0.6,
-                message=message,
-            )
+    for field, items in lists.items():
+        lists[field] = items[:MAX_SUMMARY_LIST_ITEMS]
+
+    lists["recommended_actions"] = _recommended_actions(findings, analysis)
+    return lists
+
+
+def _recommended_actions(
+    findings: list[Finding], analysis: AnalysisResult | None
+) -> list[str]:
+    """Derive next steps from what was actually found, not from a fixed list."""
+    actions: list[str] = []
+
+    high = [finding for finding in findings if finding.severity == "high"]
+    if high:
+        actions.append(
+            f"Resolve or explicitly accept {len(high)} high-severity finding(s) before merging."
         )
 
-    for message in missing_tests:
-        findings.append(
-            Finding(
-                file=primary_file,
-                line=resolve_anchor(diff_index, primary_file),
-                category="missing_test",
-                severity="low",
-                confidence=0.7,
-                message=message,
-            )
+    action_findings = [finding for finding in findings if finding.category == "recommended_action"]
+    actions.extend(f"{_locate(finding)} - {finding.message}" for finding in action_findings)
+
+    if analysis is not None and analysis.unanchorable_files:
+        listed = ", ".join(analysis.unanchorable_files[:5])
+        actions.append(
+            f"No diff content is available for {listed}; findings in those files cannot be "
+            "anchored to a line."
         )
 
-    for message in suggested_test_cases:
-        findings.append(
-            Finding(
-                file=None,
-                line=None,
-                category="suggested_test",
-                severity="info",
-                confidence=0.4,
-                message=message,
-            )
+    if not findings:
+        actions.append(
+            "No deterministic rule matched this diff. That is not a pass: a human still "
+            "has to read the change."
         )
 
-    for message in recommended_actions:
-        findings.append(
-            Finding(
-                file=None,
-                line=None,
-                category="recommended_action",
-                severity="info",
-                confidence=0.4,
-                message=message,
-            )
-        )
-
-    return findings
+    return actions[:MAX_SUMMARY_LIST_ITEMS]
 
 
-def _primary_changed_file(changed_files: list[str]) -> str | None:
-    non_test_files = [path for path in changed_files if "test" not in path.lower()]
-    if non_test_files:
-        return non_test_files[0]
-    if changed_files:
-        return changed_files[0]
-    return None
+def escalate_risk(risk_level: str, findings: list[Finding]) -> str:
+    """Raise the risk level to match the most severe finding actually produced.
+
+    Risk started as a keyword match over the diff text, which misses a real
+    defect whose file and identifiers happen to contain no risk term: an SQL
+    statement built by interpolation in `repo.py` scored Low while the rule
+    engine flagged it as high severity, so the gate said `looks_good`.
+    Escalation only ever moves risk up, so a finding can add human review but
+    can never remove it.
+    """
+    ranked = {"low": 0, "medium": 1, "high": 2}
+    current = ranked.get(risk_level.strip().lower(), 0)
+
+    highest = highest_severity(findings)
+    from_findings = {"info": 0, "low": 0, "medium": 1, "high": 2}.get(highest, 0)
+
+    return ["Low", "Medium", "High"][max(current, from_findings)]
+
+
+def _summarize_analysis(analysis: AnalysisResult, changed_files: list[str]) -> str:
+    """State exactly what was inspected and what matched."""
+    if not changed_files:
+        return "No changed files were detected. Deterministic rules ran over an empty change set."
+
+    matched_rules = sorted({match.rule_id for match in analysis.matches})
+    inspected = (
+        f"Deterministic rules inspected {analysis.inspected_added_lines} added line(s) "
+        f"across {analysis.inspected_files} file(s) of {len(changed_files)} changed file(s). "
+        "No model was called."
+    )
+    if not matched_rules:
+        return f"{inspected} No rule matched."
+    return f"{inspected} Matched rules: {', '.join(matched_rules)}."
+
+
+def highest_severity(findings: list[Finding]) -> str:
+    """Return the highest severity present, or 'info' when there are none."""
+    if not findings:
+        return "info"
+    return max(findings, key=lambda finding: _SEVERITY_RANK.get(finding.severity, -1)).severity
 
 
 def _estimate_risk(diff: str, changed_files: list[str]) -> str:

@@ -13,8 +13,9 @@ from github_review_reporter import (
     build_summary_comment_body,
     write_payload,
 )
-from llm_reviewer import derive_decision, review_diff
+from llm_reviewer import derive_final_decision, review_diff
 from report_generator import generate_report
+from schemas import REVIEW_FAILURE_STATUSES
 from test_runner import run_tests
 
 
@@ -54,8 +55,8 @@ def main() -> int:
         test_result = run_tests(repo_path)
         review = review_diff(git_result.diff, git_result.changed_files)
         review.automated_test_results = test_result
-        review.review_decision, review.human_review_decision = derive_decision(
-            review.risk_level,
+        review.review_decision, review.human_review_decision = derive_final_decision(
+            review,
             test_result,
         )
 
@@ -63,32 +64,41 @@ def main() -> int:
             review.recommended_actions.append(f"Git diff warning: {git_result.error}")
 
         report_path = generate_report(review, output_path)
+        review_failed = review.review_status in REVIEW_FAILURE_STATUSES
         emitted_payload_path = None
         emitted_summary_path = None
         emitted_inline_path = None
         emitted_fingerprints_path = None
         diff_index = None
-        if github_review_path:
-            diff_index = parse_unified_diff(git_result.diff)
-            payload = build_review_payload(review, diff_index, head_sha=args.head_sha)
-            emitted_payload_path = write_payload(payload, github_review_path)
-        if summary_comment_path:
-            if diff_index is None:
+        if review_failed:
+            if any((github_review_path, summary_comment_path, inline_review_path, finding_fingerprints_path)):
+                print("Skipped GitHub artifacts because the review did not complete.", file=sys.stderr)
+        else:
+            if github_review_path:
                 diff_index = parse_unified_diff(git_result.diff)
-            summary_body = build_summary_comment_body(review, diff_index)
-            emitted_summary_path = write_payload({"body": summary_body}, summary_comment_path)
-        if inline_review_path:
-            if diff_index is None:
-                diff_index = parse_unified_diff(git_result.diff)
-            inline_payload = build_inline_review_payload(review, diff_index, head_sha=args.head_sha)
-            emitted_inline_path = write_payload(inline_payload, inline_review_path)
-        if finding_fingerprints_path:
-            fingerprints = all_finding_fingerprints(review)
-            emitted_fingerprints_path = write_payload({"fingerprints": fingerprints}, finding_fingerprints_path)
+                payload = build_review_payload(review, diff_index, head_sha=args.head_sha)
+                emitted_payload_path = write_payload(payload, github_review_path)
+            if summary_comment_path:
+                if diff_index is None:
+                    diff_index = parse_unified_diff(git_result.diff)
+                summary_body = build_summary_comment_body(review, diff_index)
+                emitted_summary_path = write_payload({"body": summary_body}, summary_comment_path)
+            if inline_review_path:
+                if diff_index is None:
+                    diff_index = parse_unified_diff(git_result.diff)
+                inline_payload = build_inline_review_payload(review, diff_index, head_sha=args.head_sha)
+                emitted_inline_path = write_payload(inline_payload, inline_review_path)
+            if finding_fingerprints_path:
+                fingerprints = all_finding_fingerprints(review)
+                emitted_fingerprints_path = write_payload({"fingerprints": fingerprints}, finding_fingerprints_path)
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
+    print(
+        f"Review status: {review.review_status} "
+        f"(mode={review.review_mode}, source={review.review_source})"
+    )
     print(f"Review report generated: {report_path}")
     if emitted_payload_path:
         print(f"GitHub review payload generated: {emitted_payload_path}")
@@ -98,6 +108,9 @@ def main() -> int:
         print(f"GitHub inline review payload generated: {emitted_inline_path}")
     if emitted_fingerprints_path:
         print(f"Finding fingerprints generated: {emitted_fingerprints_path}")
+    if review_failed:
+        print(f"Review failed: {review.review_status_detail}", file=sys.stderr)
+        return 2
     return 0
 
 

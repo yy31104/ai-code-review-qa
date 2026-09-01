@@ -199,6 +199,9 @@ def test_build_review_payload_shape_and_summary_counts() -> None:
     assert "@\u200bteam" in payload["comments"][0]["body"]
     body = payload["body"]
     assert SUMMARY_MARKER in body
+    assert "Review mode: demo" in body
+    assert "Review status: demo" in body
+    assert "Finding source: demo\\_rules" in body
     assert "Verdict: looks\\_good" in body
     assert "Risk level: Low" in body
     assert "Test status: passed" in body
@@ -220,6 +223,7 @@ def test_build_summary_comment_body_contains_marker_and_review_context() -> None
     body = build_summary_comment_body(review, _diff_index())
 
     assert SUMMARY_MARKER in body
+    assert "Review status: demo" in body
     assert "Verdict: looks\\_good" in body
     assert "Risk level: Low" in body
     assert "Test status: passed" in body

@@ -13,7 +13,7 @@ try:
     from github_constants import INLINE_FINGERPRINT_PREFIX, INLINE_FINGERPRINT_SUFFIX, SUMMARY_MARKER
 except ImportError:  # pragma: no cover - package import fallback
     from .github_constants import INLINE_FINGERPRINT_PREFIX, INLINE_FINGERPRINT_SUFFIX, SUMMARY_MARKER
-from schemas import Finding, ReviewResult
+from schemas import REVIEW_FAILURE_STATUSES, Finding, ReviewResult
 
 
 MAX_MESSAGE_CHARS = 1000
@@ -158,7 +158,7 @@ def build_inline_review_payload(
         "body": _summary_body(
             review,
             summary_findings,
-            inline_count=len(inline_findings),
+            inline_findings=inline_findings,
             overflow_count=overflow_count,
             inline_cap=inline_limit,
         ),
@@ -173,7 +173,7 @@ def build_inline_review_payload(
 def build_summary_comment_body(review: ReviewResult, diff_index: DiffIndex) -> str:
     """Build the marker-based summary comment body used by dry-run and posting flows."""
     inline_findings, summary_findings = _partition_findings(review, diff_index)
-    return _summary_body(review, summary_findings, inline_count=len(inline_findings))
+    return _summary_body(review, summary_findings, inline_findings=inline_findings)
 
 
 def write_payload(payload: dict[str, Any], path: str | Path) -> Path:
@@ -209,14 +209,18 @@ def _summary_body(
     review: ReviewResult,
     summary_findings: list[Finding],
     *,
-    inline_count: int,
+    inline_findings: list[Finding],
     overflow_count: int = 0,
     inline_cap: int | None = None,
 ) -> str:
+    inline_count = len(inline_findings)
     lines = [
         SUMMARY_MARKER,
         "## AI Code Review Summary",
         "",
+        f"- Review mode: {escape_markdown(review.review_mode)}",
+        f"- Review status: {escape_markdown(review.review_status)}",
+        f"- Finding source: {escape_markdown(review.review_source)}",
         f"- Verdict: {escape_markdown(review.review_decision)}",
         f"- Human review explanation: {escape_markdown(review.human_review_decision)}",
         f"- Risk level: {escape_markdown(review.risk_level)}",
@@ -226,6 +230,17 @@ def _summary_body(
         "",
         "Human-in-the-loop note: this dry-run payload is advisory only; a developer must verify findings before merging.",
     ]
+
+    if review.review_status in REVIEW_FAILURE_STATUSES:
+        lines.extend(
+            [
+                "",
+                (
+                    "Review failure: no provider-backed findings were produced. "
+                    "Resolve the reported failure and rerun before relying on this review."
+                ),
+            ]
+        )
 
     if overflow_count:
         cap_label = inline_cap if inline_cap is not None else inline_count
@@ -238,6 +253,13 @@ def _summary_body(
                 ),
             ]
         )
+
+    if inline_findings:
+        lines.extend(["", "### Inline-routed findings"])
+        for finding in sorted(inline_findings, key=_inline_sort_key):
+            location = f"{finding.file}:{finding.line}"
+            label = f"{escape_markdown(finding.severity)} / {escape_markdown(finding.category)}"
+            lines.append(f"- `{escape_markdown(location)}` {label}: {escape_markdown(finding.message)}")
 
     lines.extend(["", "### Summary-routed findings"])
     if not summary_findings:

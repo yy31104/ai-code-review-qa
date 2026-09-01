@@ -240,3 +240,47 @@ def test_parsing_and_anchor_resolution_are_deterministic() -> None:
 
     assert first == second
     assert resolve_anchor(first, "app.py") == resolve_anchor(second, "app.py")
+
+
+def test_change_blocks_pair_removed_and_added_lines() -> None:
+    from diff_index import parse_unified_diff
+
+    diff = (
+        "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n"
+        "@@ -10,4 +10,4 @@\n"
+        " def f():\n"
+        "-    old_one()\n"
+        "-    old_two()\n"
+        "+    new_one()\n"
+        " def g():\n"
+        "@@ -30,1 +30,2 @@\n"
+        " def h():\n"
+        "+    fresh()\n"
+    )
+
+    diff_file = parse_unified_diff(diff).files["a.py"]
+
+    assert len(diff_file.change_blocks) == 2
+    assert list(diff_file.change_blocks[0].removed.values()) == ["    old_one()", "    old_two()"]
+    assert list(diff_file.change_blocks[0].added.values()) == ["    new_one()"]
+    # The second hunk's addition replaced nothing.
+    assert diff_file.change_blocks[1].removed == {}
+    assert diff_file.block_of_added[31] == 1
+
+
+def test_a_context_line_closes_a_change_block() -> None:
+    from diff_index import parse_unified_diff
+
+    diff = (
+        "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n"
+        "@@ -1,5 +1,5 @@\n"
+        "-first()\n"
+        "+first_v2()\n"
+        " untouched()\n"
+        "-second()\n"
+        "+second_v2()\n"
+    )
+
+    diff_file = parse_unified_diff(diff).files["a.py"]
+
+    assert len(diff_file.change_blocks) == 2
