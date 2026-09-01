@@ -7,7 +7,7 @@ from textwrap import dedent
 from dotenv import load_dotenv
 from pydantic import ValidationError
 
-from diff_index import parse_unified_diff
+from diff_index import normalize_path, parse_unified_diff
 from finding_grounding import ground_findings
 from schemas import (
     REVIEW_FAILURE_STATUSES,
@@ -103,29 +103,50 @@ def derive_final_decision(review: ReviewResult, test_result: TestResult) -> tupl
                 "No model findings were produced; resolve the failure and rerun before merging."
             ),
         )
+    if review.review_status == "abstained":
+        return (
+            NEEDS_HUMAN_REVIEW,
+            "The reviewer abstained because the diff did not provide enough added-line evidence; a developer must review the change directly.",
+        )
+    if review.review_status == "no_changes":
+        return (
+            NEEDS_HUMAN_REVIEW,
+            "No reviewable Python diff was available, so no automated judgment was made.",
+        )
     return derive_decision(review.risk_level, test_result)
 
 
 def review_diff(diff: str, changed_files: list[str]) -> ReviewResult:
     """Return a structured code review.
 
-    Demo mode is the default. Set AI_REVIEW_MODE=openai plus OPENAI_API_KEY
+    Static mode is the default. Set AI_REVIEW_MODE=openai plus OPENAI_API_KEY
     to call the OpenAI Responses API.
     """
     load_dotenv()
-    mode = os.getenv("AI_REVIEW_MODE", "demo").strip().lower()
+    mode = os.getenv("AI_REVIEW_MODE", "static").strip().lower() or "static"
 
-    if mode in {"", "demo"}:
-        return _demo_review(diff, changed_files)
-
-    if mode != "openai":
+    if mode not in {"static", "openai"}:
         return _failed_review(
             diff=diff,
             changed_files=changed_files,
             mode=mode,
             status="configuration_error",
-            detail="AI_REVIEW_MODE must be either 'demo' or 'openai'.",
+            detail="AI_REVIEW_MODE must be either 'static' or 'openai'.",
         )
+
+    input_status = _input_status(diff, changed_files)
+    if input_status is not None:
+        status, detail = input_status
+        return _non_completed_review(
+            diff=diff,
+            changed_files=changed_files,
+            mode=mode,
+            status=status,
+            detail=detail,
+        )
+
+    if mode == "static":
+        return _static_review(diff, changed_files)
 
     try:
         return _review_with_openai(diff, changed_files)
@@ -158,7 +179,7 @@ def review_diff(diff: str, changed_files: list[str]) -> ReviewResult:
         )
 
 
-def _demo_review(diff: str, changed_files: list[str]) -> ReviewResult:
+def _static_review(diff: str, changed_files: list[str]) -> ReviewResult:
     """Review the diff with deterministic rules only. No model is called.
 
     Every finding here comes from a named rule in `static_review` and is
@@ -185,9 +206,9 @@ def _demo_review(diff: str, changed_files: list[str]) -> ReviewResult:
     review_decision, human_review_decision = derive_decision(risk_level, TestResult())
 
     return ReviewResult(
-        review_mode="demo",
-        review_status="demo",
-        review_source="demo_rules",
+        review_mode="static",
+        review_status="completed",
+        review_source="static_rules",
         review_status_detail=None,
         review_model=None,
         project_summary=_summarize_analysis(analysis, changed_files),
@@ -201,6 +222,71 @@ def _demo_review(diff: str, changed_files: list[str]) -> ReviewResult:
     )
 
 
+def _input_status(
+    diff: str, changed_files: list[str]
+) -> tuple[ReviewStatus, str] | None:
+    """Classify input availability without using the finding count.
+
+    The reviewer is scoped to Python additions. No diff or no Python path is a
+    `no_changes` outcome. A Python path with no readable added right-side line
+    is an explicit abstention because the evidence required for grounding is
+    unavailable.
+    """
+    if not diff.strip():
+        return "no_changes", "No diff content was available to review."
+
+    diff_index = parse_unified_diff(diff)
+    paths = {normalize_path(path) for path in changed_files}
+    paths.update(diff_index.files)
+    python_paths = {path for path in paths if path.lower().endswith(".py")}
+    if not python_paths:
+        return "no_changes", "The diff contained no Python files in the reviewer's scope."
+
+    for path in python_paths:
+        diff_file = diff_index.files.get(path)
+        if diff_file is not None and not diff_file.is_binary and diff_file.right_lines:
+            return None
+
+    return (
+        "abstained",
+        "Python changes were present, but the diff contained no readable added lines to ground a review.",
+    )
+
+
+def _non_completed_review(
+    *,
+    diff: str,
+    changed_files: list[str],
+    mode: str,
+    status: ReviewStatus,
+    detail: str,
+) -> ReviewResult:
+    """Return a valid no-input or abstention result without findings."""
+    test_result = TestResult(project_type="not run")
+    review = ReviewResult(
+        review_mode=mode,
+        review_status=status,
+        review_source="none",
+        review_status_detail=detail,
+        review_model=None,
+        project_summary=detail,
+        changed_files=changed_files,
+        risk_level=_estimate_risk(diff, changed_files),
+        automated_test_results=test_result,
+        recommended_actions=(
+            ["Provide a unified diff with readable added Python lines and rerun the reviewer."]
+            if status == "abstained"
+            else []
+        ),
+        review_decision=NEEDS_HUMAN_REVIEW,
+        human_review_decision="pending",
+    )
+    review.review_decision, review.human_review_decision = derive_final_decision(
+        review, test_result
+    )
+    return review
+
+
 def _failed_review(
     *,
     diff: str,
@@ -210,7 +296,7 @@ def _failed_review(
     detail: str,
     model: str | None = None,
 ) -> ReviewResult:
-    """Return an auditable failure artifact without substituting demo findings."""
+    """Return an auditable failure artifact without substituting static findings."""
     test_result = TestResult(project_type="not run")
     return ReviewResult(
         review_mode=mode,

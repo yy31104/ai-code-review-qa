@@ -46,7 +46,7 @@ def test_cli_generates_summary_for_pr_merge_base_range(tmp_path: Path) -> None:
     report_path = tmp_path / "review_report.html"
     summary_path = tmp_path / "summary-comment.json"
     env = os.environ.copy()
-    env["AI_REVIEW_MODE"] = "demo"
+    env["AI_REVIEW_MODE"] = "static"
 
     completed = subprocess.run(
         [

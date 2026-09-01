@@ -71,7 +71,7 @@ def test_low_passing_report_renders_lgtm_decision(tmp_path: Path) -> None:
     assert "Decision: Looks Good - Verify &amp; Merge" in html
     assert "aria-label=\"Looks Good - Verify &amp; Merge decision icon\"" in html
     assert "Decision: Needs Human Review" not in html
-    assert "Deterministic demo output." in html
+    assert "Deterministic static-analysis output." in html
     assert "No model was called." in html
 
 

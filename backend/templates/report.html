@@ -32,6 +32,7 @@
 {% set decision_key = review.review_decision | default("needs_human_review") %}
 {% set decision = decision_styles.get(decision_key, decision_styles["needs_human_review"]) %}
 {% set review_failed = review.review_status in ["configuration_error", "provider_failed", "invalid_output"] %}
+{% set review_incomplete = review.review_status in ["abstained", "no_changes"] %}
 {% macro decision_badge(decision, style="") -%}
   <span class="badge {{ decision.badge }}"{% if style %} style="{{ style }}"{% endif %}>Decision: {{ decision.label }}</span>
 {%- endmacro %}
@@ -513,13 +514,19 @@
       </div>
     </div>
 
-    <div class="review-provenance{% if review_failed %} failed{% endif %}">
+    <div class="review-provenance{% if review_failed or review_incomplete %} failed{% endif %}">
       {% if review_failed %}
         <strong>Review did not complete.</strong>
         <p>{{ review.review_status_detail }} No provider findings were produced.</p>
-      {% elif review.review_status == "demo" %}
-        <strong>Deterministic demo output.</strong>
-        <p>No model was called. These rule-generated findings test pipeline behavior, not model review quality.</p>
+      {% elif review.review_status == "abstained" %}
+        <strong>Reviewer abstained.</strong>
+        <p>{{ review.review_status_detail }} No findings were produced.</p>
+      {% elif review.review_status == "no_changes" %}
+        <strong>No reviewable changes.</strong>
+        <p>{{ review.review_status_detail }} No findings were produced.</p>
+      {% elif review.review_source == "static_rules" %}
+        <strong>Deterministic static-analysis output.</strong>
+        <p>No model was called. Findings come from named rules over added Python lines.</p>
       {% else %}
         <strong>Provider output passed structural validation.</strong>
         <p>Schema validation checks shape and types; it does not prove that a finding is correct.</p>

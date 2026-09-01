@@ -110,8 +110,8 @@ def test_review_result_defaults_findings_to_empty_list() -> None:
     assert review.findings == []
 
 
-def test_demo_findings_are_deterministic(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("AI_REVIEW_MODE", "demo")
+def test_static_findings_are_deterministic(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_REVIEW_MODE", "static")
     changed_files = ["backend/app/deploy.py"]
 
     first = review_diff(SHELL_TRUE_DIFF, changed_files)
@@ -119,12 +119,13 @@ def test_demo_findings_are_deterministic(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert first.findings
     assert _dump_findings(first) == _dump_findings(second)
-    assert first.review_status == "demo"
-    assert first.review_source == "demo_rules"
+    assert first.review_mode == "static"
+    assert first.review_status == "completed"
+    assert first.review_source == "static_rules"
 
 
 def test_shell_true_yields_grounded_security_finding(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("AI_REVIEW_MODE", "demo")
+    monkeypatch.setenv("AI_REVIEW_MODE", "static")
     review = review_diff(SHELL_TRUE_DIFF, ["backend/app/deploy.py"])
 
     matching = [finding for finding in review.findings if finding.rule_id == "subprocess_shell_true"]
@@ -137,7 +138,7 @@ def test_shell_true_yields_grounded_security_finding(monkeypatch: pytest.MonkeyP
 
 
 def test_clean_diff_produces_no_findings(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("AI_REVIEW_MODE", "demo")
+    monkeypatch.setenv("AI_REVIEW_MODE", "static")
     clean_diff = "\n".join(
         [
             "diff --git a/backend/app/totals.py b/backend/app/totals.py",
@@ -153,12 +154,14 @@ def test_clean_diff_produces_no_findings(monkeypatch: pytest.MonkeyPatch) -> Non
     review = review_diff(clean_diff, ["backend/app/totals.py", "tests/test_totals.py"])
 
     assert review.findings == []
+    assert review.review_status == "completed"
+    assert review.review_source == "static_rules"
     assert review.possible_bugs == []
     assert "No rule matched" in review.project_summary
 
 
-def test_demo_finding_metadata_is_valid(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("AI_REVIEW_MODE", "demo")
+def test_static_finding_metadata_is_valid(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_REVIEW_MODE", "static")
     review = review_diff(SHELL_TRUE_DIFF, ["backend/app/deploy.py"])
 
     assert review.findings
@@ -172,16 +175,38 @@ def test_demo_finding_metadata_is_valid(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_empty_diff_without_files_does_not_crash(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("AI_REVIEW_MODE", "demo")
+    monkeypatch.setenv("AI_REVIEW_MODE", "static")
     review = review_diff("", [])
 
     assert review.findings == []
     assert review.rejected_findings == []
-    assert "empty change set" in review.project_summary
+    assert review.review_status == "no_changes"
+    assert "No diff content" in review.project_summary
+
+
+def test_out_of_scope_diff_is_no_changes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_REVIEW_MODE", "static")
+    docs_diff = "\n".join(
+        [
+            "diff --git a/README.md b/README.md",
+            "--- a/README.md",
+            "+++ b/README.md",
+            "@@ -1,1 +1,2 @@",
+            " # Project",
+            "+More detail.",
+            "",
+        ]
+    )
+
+    review = review_diff(docs_diff, ["README.md"])
+
+    assert review.review_status == "no_changes"
+    assert review.review_source == "none"
+    assert review.findings == []
 
 
 def test_realistic_hunk_diff_can_produce_line_anchor(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("AI_REVIEW_MODE", "demo")
+    monkeypatch.setenv("AI_REVIEW_MODE", "static")
     review = review_diff(SHELL_TRUE_DIFF, ["backend/app/deploy.py"])
 
     assert any(
@@ -192,11 +217,13 @@ def test_realistic_hunk_diff_can_produce_line_anchor(monkeypatch: pytest.MonkeyP
 
 def test_headerless_diff_produces_no_findings(monkeypatch: pytest.MonkeyPatch) -> None:
     """Without hunk headers there is no file or line to attribute a finding to."""
-    monkeypatch.setenv("AI_REVIEW_MODE", "demo")
+    monkeypatch.setenv("AI_REVIEW_MODE", "static")
     review = review_diff("+subprocess.run(cmd, shell=True)\n", ["backend/app/auth.py"])
 
     assert review.findings == []
-    assert any("cannot be anchored" in action for action in review.recommended_actions)
+    assert review.review_status == "abstained"
+    assert review.review_source == "none"
+    assert any("unified diff" in action for action in review.recommended_actions)
 
 
 def test_eval_finding_checks_can_pass_and_fail() -> None:
@@ -379,7 +406,7 @@ def test_mocked_openai_parse_failure_is_explicit(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=FakeOpenAI))
 
-    review = review_diff("+authToken = build(user)", ["backend/app/auth.py"])
+    review = review_diff(AUTH_DIFF, ["backend/app/auth.py"])
 
     assert review.review_mode == "openai"
     assert review.review_status == "invalid_output"
@@ -402,7 +429,7 @@ def test_openai_provider_failure_does_not_expose_exception_text(monkeypatch: pyt
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=FakeOpenAI))
 
-    review = review_diff("+authToken = build(user)", ["backend/app/auth.py"])
+    review = review_diff(AUTH_DIFF, ["backend/app/auth.py"])
 
     assert review.review_status == "provider_failed"
     assert review.review_source == "none"

@@ -22,7 +22,7 @@ suite graded that prose. Both are now replaced. The measured state is:
 
 | Property | Value | How it was established |
 | --- | --- | --- |
-| Deterministic rules | 11 lexical rules over added lines | `backend/app/static_review.py` |
+| Deterministic rules | 10 lexical rules over added lines | `backend/app/static_review.py` |
 | Synthetic regression | 42 cases, 109 checks | `evals/run_local.py` |
 | Real-diff provisional precision, pass 1 | 19% (3/16, 95% CI 7–43%) | model-assisted triage, `verdicts_dev_pass1.jsonl` |
 | Real-diff precision, pass 3 | 1/1 — not a sample | `verdicts_dev_pass3.jsonl` |
@@ -62,19 +62,18 @@ line attribution, grounding, deduplication, severity policy, run status, and eve
 model proposes candidate findings and nothing else. It never sets provider success, grounding
 status, merge advice, publication, provenance, or final severity.
 
-Given the emission rate above, the working assumption is inverted from the brief's: the 11 rules
+Given the emission rate above, the working assumption is inverted from the brief's: the static rules
 are a floor and a control, not the product. Whether the LLM adds enough over that floor to be
 worth its cost is the central open question, not a validation step at the end.
 
 ### 4. Run status and failure model
 
-Current: `completed`, `demo`, `configuration_error`, `provider_failed`, `invalid_output`.
-Two states are missing and are added in PR-2: `abstained` (the reviewer ran and declined) and
-`no_changes` (nothing in scope). A provider failure produces no findings, no GitHub artifact,
-and a documented non-zero exit code. That behavior exists and is tested; it must not regress.
-
-`demo` is renamed to `static`. The mode now runs real analysis, and calling its output
-`demo_rules` understates what it does while implying the tool is a toy.
+The six run states are `completed`, `configuration_error`, `provider_failed`, `invalid_output`,
+`abstained` and `no_changes`. `no_changes` means there is no reviewable Python diff. `abstained`
+means an in-scope Python change exists but the reviewer lacks readable added-line evidence. A
+provider failure produces no findings, no GitHub artifact, and a documented non-zero exit code.
+Static success is `mode=static`, `status=completed`, `source=static_rules`; status is not inferred
+from whether the finding list is empty.
 
 ### 5. Finding schema and grounding contract
 
@@ -141,18 +140,18 @@ corrected by not extending this layer, not by deleting it.
 
 ## Discard rather than polish
 
-- **`todo_marker` rule.** Flags `# TODO` as a finding. It will fire on ordinary commits and
+- **The TODO-marker heuristic.** It fired on ordinary commits and
   dilute every precision number without ever identifying a defect. Remove before the held-out run.
 - **`suggested_test_cases` and the concern-list projections.** Harmless but they exist only to
   fill HTML sections. Reassess once the reporter split lands.
-- **The `demo` vocabulary** throughout README, workflows and schema. Replaced in PR-2.
+- **The obsolete placeholder vocabulary** throughout README, workflows and schema. Replaced by `static` in PR-2.
 
 ## PR sequence
 
 | PR | Content | Acceptance |
 | --- | --- | --- |
 | 1 | Publish the recovery branch to `main` | Public README carries no claim the repository cannot verify; CI green on the PR |
-| 2 | Complete the state model; `demo` → `static`; drop `todo_marker` | Each of the six states has a test and a smoke test asserting exit code and artifacts |
+| 2 | Complete the state model; finalize `static`; drop the TODO-marker heuristic | Each of the six states has a test and a smoke test asserting exit code and artifacts |
 | 3 | **Recall probe**: adjudicate 30 silently-reviewed commits | A committed verdict file records what the rules missed and a taxonomy of miss types |
 | 4 | Corpus selection study | Emission rate measured on ≥3 corpora of differing review rigour; held-out size derived from it |
 | 5 | Freeze the held-out benchmark | Split created and hashed before any result is read; documented as never inspected |
@@ -188,14 +187,14 @@ clean cases and make the scope share computable.
 
 Add `evals/real_diffs.py recall-score`, which reads those rows back and reports: commits sampled,
 commits with at least one missed defect, total missed defects by category, and the share of missed
-defects that fall inside the 11 rules' stated scope — the last being the number that decides
+defects that fall inside the 10 rules' stated scope — the last being the number that decides
 whether the rules are worth extending.
 
 This is a silent-commit miss audit, not classical `TP / (TP + FN)` recall: it samples only commits
 where the reviewer emitted nothing and does not fully label the emitted-finding population.
 
 The tooling can be implemented before PR-2, but the development sample must be regenerated and
-only then adjudicated after `todo_marker` is removed and the static rule inventory is final.
+only then adjudicated after the TODO-marker heuristic is removed and the static rule inventory is final.
 
 Reuse the existing manifest binding, content-addressed ids, verdict validation and label-preserving
 rerun. Do not generate `missed` entries. Do not change any rule. Tests must cover sampling

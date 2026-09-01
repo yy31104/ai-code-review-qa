@@ -57,8 +57,8 @@ PROBE_VERDICTS = ("clean", "missed_defect", "unsure")
 PROBE_SCHEMA_VERSION = 1
 OUT_OF_SCOPE = "out_of_scope"
 SCOPE_UNSURE = "unsure"
-STATIC_SUCCESS_STATUSES = frozenset({"completed", "demo", "static"})
-STATIC_REVIEW_SOURCES = frozenset({"demo_rules", "static_rules"})
+STATIC_SUCCESS_STATUSES = frozenset({"completed"})
+STATIC_REVIEW_SOURCES = frozenset({"static_rules"})
 RULE_SCOPE_DESCRIPTIONS = {
     "broad_except": "An added bare except or except BaseException handler.",
     "swallowed_exception": "An added exception handler whose only statement is pass.",
@@ -70,7 +70,6 @@ RULE_SCOPE_DESCRIPTIONS = {
     "dynamic_eval": "An added eval or exec call, excluding ast.literal_eval.",
     "yaml_unsafe_load": "An added yaml.load call without an explicit safe loader.",
     "request_without_timeout": "An added requests call without timeout outside tests.",
-    "todo_marker": "An added TODO, FIXME, or XXX marker.",
 }
 REVIEWER_SOURCE_PATHS = (
     APP_DIR / "diff_index.py",
@@ -220,7 +219,7 @@ def _identity(dataset_path: Path, cases: list[dict[str, Any]]) -> RunIdentity:
         revision = _git(REPO_ROOT, "rev-parse", "HEAD").strip()
     except RuntimeError:
         revision = "unknown"
-    review_mode = os.getenv("AI_REVIEW_MODE", "demo").strip().lower() or "demo"
+    review_mode = os.getenv("AI_REVIEW_MODE", "static").strip().lower() or "static"
     return RunIdentity(
         dataset_sha256=digest,
         dataset_cases=len(cases),
@@ -607,24 +606,37 @@ def _validate_dataset_manifest(
             f"Dataset/manifest case-count mismatch: manifest has "
             f"{identity.get('dataset_cases')!r}, dataset has {len(cases)}."
         )
-    if identity.get("review_mode") not in {"demo", "static"}:
+    if identity.get("review_mode") != "static":
         raise ValueError("Recall probe requires a deterministic static-review manifest.")
     if identity.get("reviewer_sha256") != _files_sha256(REVIEWER_SOURCE_PATHS):
         raise ValueError(
             "Reviewer source differs from the source recorded in the manifest. "
             "Rerun `review` before creating a recall probe."
         )
-
-    failed_cases = [
-        str(case.get("case_id") or "unknown")
-        for case in case_rows
-        if case.get("review_status") not in STATIC_SUCCESS_STATUSES
-        or case.get("review_source") not in STATIC_REVIEW_SOURCES
-    ]
-    if failed_cases:
+    if identity.get("harness_sha256") != _files_sha256((Path(__file__),)):
         raise ValueError(
-            "Recall probe requires successful static review cases; non-successful case(s): "
-            + ", ".join(failed_cases)
+            "Real-diff harness differs from the source recorded in the manifest. "
+            "Rerun `review` before creating a recall probe."
+        )
+
+    invalid_cases = []
+    for case in case_rows:
+        status = case.get("review_status")
+        source = case.get("review_source")
+        finding_count = case.get("findings")
+        completed = status in STATIC_SUCCESS_STATUSES and source in STATIC_REVIEW_SOURCES
+        expected_non_completion = (
+            status in {"abstained", "no_changes"}
+            and source == "none"
+            and finding_count == 0
+        )
+        if not completed and not expected_non_completion:
+            invalid_cases.append(str(case.get("case_id") or "unknown"))
+
+    if invalid_cases:
+        raise ValueError(
+            "Recall probe manifest contains invalid static review case(s): "
+            + ", ".join(invalid_cases)
         )
 
     dataset_ids = [str(case.get("id") or "") for case in cases]

@@ -15,7 +15,7 @@ from github_review_reporter import (
 )
 from llm_reviewer import derive_final_decision, review_diff
 from report_generator import generate_report
-from schemas import REVIEW_FAILURE_STATUSES
+from schemas import REVIEW_FAILURE_STATUSES, REVIEW_NON_PUBLISHABLE_STATUSES
 from test_runner import run_tests
 
 
@@ -65,14 +65,19 @@ def main() -> int:
 
         report_path = generate_report(review, output_path)
         review_failed = review.review_status in REVIEW_FAILURE_STATUSES
+        review_publishable = review.review_status not in REVIEW_NON_PUBLISHABLE_STATUSES
         emitted_payload_path = None
         emitted_summary_path = None
         emitted_inline_path = None
         emitted_fingerprints_path = None
         diff_index = None
-        if review_failed:
+        if not review_publishable:
             if any((github_review_path, summary_comment_path, inline_review_path, finding_fingerprints_path)):
-                print("Skipped GitHub artifacts because the review did not complete.", file=sys.stderr)
+                print(
+                    f"Skipped GitHub artifacts because review status "
+                    f"{review.review_status!r} is not publishable.",
+                    file=sys.stderr,
+                )
         else:
             if github_review_path:
                 diff_index = parse_unified_diff(git_result.diff)

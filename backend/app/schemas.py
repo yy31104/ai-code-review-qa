@@ -15,13 +15,17 @@ FindingCategory = Literal[
 FindingSeverity = Literal["info", "low", "medium", "high"]
 ReviewStatus = Literal[
     "completed",
-    "demo",
     "configuration_error",
     "provider_failed",
     "invalid_output",
+    "abstained",
+    "no_changes",
 ]
-ReviewSource = Literal["provider", "demo_rules", "none"]
+ReviewSource = Literal["provider", "static_rules", "none"]
 REVIEW_FAILURE_STATUSES = frozenset({"configuration_error", "provider_failed", "invalid_output"})
+REVIEW_NON_PUBLISHABLE_STATUSES = REVIEW_FAILURE_STATUSES | frozenset(
+    {"abstained", "no_changes"}
+)
 
 
 class TestResult(BaseModel):
@@ -110,9 +114,9 @@ class ProviderReview(BaseModel):
 
 
 class ReviewResult(BaseModel):
-    review_mode: str = "demo"
-    review_status: ReviewStatus = "demo"
-    review_source: ReviewSource = "demo_rules"
+    review_mode: str = "static"
+    review_status: ReviewStatus = "completed"
+    review_source: ReviewSource = "static_rules"
     review_status_detail: Optional[str] = None
     review_model: Optional[str] = None
     project_summary: str

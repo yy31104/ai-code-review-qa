@@ -99,8 +99,8 @@ def recall_inputs(
                 "subject": f"change {index}",
                 "changed_files": [path],
                 "diff_chars": 100,
-                "review_status": "demo",
-                "review_source": "demo_rules",
+                "review_status": "completed",
+                "review_source": "static_rules",
                 "risk_level": "Low",
                 "findings": 1 if index in finding_case_indexes else 0,
                 "rejected_findings": 0,
@@ -305,13 +305,33 @@ def test_recall_probe_rejects_dataset_manifest_mismatch(tmp_path: Path) -> None:
         _validate_dataset_manifest(dataset, cases, manifest)
 
 
+def test_recall_probe_rejects_stale_review_harness(tmp_path: Path) -> None:
+    dataset, cases, manifest = recall_inputs(tmp_path)
+    manifest["identity"]["harness_sha256"] = "wrong"  # type: ignore[index]
+
+    with pytest.raises(ValueError, match="Real-diff harness differs"):
+        _validate_dataset_manifest(dataset, cases, manifest)
+
+
 def test_recall_probe_rejects_failed_static_cases(tmp_path: Path) -> None:
     dataset, cases, manifest = recall_inputs(tmp_path)
     manifest["cases"][1]["review_status"] = "configuration_error"  # type: ignore[index]
     manifest["cases"][1]["review_source"] = "none"  # type: ignore[index]
 
-    with pytest.raises(ValueError, match="non-successful case"):
+    with pytest.raises(ValueError, match="invalid static review case"):
         _validate_dataset_manifest(dataset, cases, manifest)
+
+
+def test_recall_probe_allows_but_does_not_sample_abstained_cases(tmp_path: Path) -> None:
+    dataset, cases, manifest = recall_inputs(tmp_path)
+    manifest["cases"][1]["review_status"] = "abstained"  # type: ignore[index]
+    manifest["cases"][1]["review_source"] = "none"  # type: ignore[index]
+
+    _validate_dataset_manifest(dataset, cases, manifest)
+    header, rows = build_recall_probe(cases, manifest, count=3, seed=20260901)
+
+    assert header["eligible_count"] == 4
+    assert all(row["case_id"] != "repo@000000000001" for row in rows)
 
 
 def test_recall_probe_artifact_allows_labels_but_not_diff_changes(tmp_path: Path) -> None:

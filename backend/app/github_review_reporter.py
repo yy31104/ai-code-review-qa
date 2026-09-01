@@ -13,7 +13,12 @@ try:
     from github_constants import INLINE_FINGERPRINT_PREFIX, INLINE_FINGERPRINT_SUFFIX, SUMMARY_MARKER
 except ImportError:  # pragma: no cover - package import fallback
     from .github_constants import INLINE_FINGERPRINT_PREFIX, INLINE_FINGERPRINT_SUFFIX, SUMMARY_MARKER
-from schemas import REVIEW_FAILURE_STATUSES, Finding, ReviewResult
+from schemas import (
+    REVIEW_FAILURE_STATUSES,
+    REVIEW_NON_PUBLISHABLE_STATUSES,
+    Finding,
+    ReviewResult,
+)
 
 
 MAX_MESSAGE_CHARS = 1000
@@ -73,6 +78,7 @@ def finding_fingerprint(finding: Finding) -> str:
 
 def all_finding_fingerprints(review: ReviewResult) -> list[str]:
     """Return stable fingerprints for every current finding, including summary-routed findings."""
+    _require_publishable(review)
     return sorted(finding_fingerprint(finding) for finding in review.findings)
 
 
@@ -107,6 +113,7 @@ def build_review_payload(
     head_sha: str | None = None,
 ) -> dict[str, Any]:
     """Build a GitHub create-review request payload without posting it."""
+    _require_publishable(review)
     inline_findings, _ = _partition_findings(review, diff_index)
 
     comments = [
@@ -138,6 +145,7 @@ def build_inline_review_payload(
     max_inline: int = MAX_INLINE_COMMENTS,
 ) -> dict[str, Any]:
     """Build a capped inline-review payload artifact without posting it."""
+    _require_publishable(review)
     inline_limit = max(0, int(max_inline))
     inline_findings, summary_findings = route_inline_findings(review, diff_index, max_inline=inline_limit)
     eligible_count = len(_sorted_inline_candidates(review, diff_index))
@@ -172,8 +180,16 @@ def build_inline_review_payload(
 
 def build_summary_comment_body(review: ReviewResult, diff_index: DiffIndex) -> str:
     """Build the marker-based summary comment body used by dry-run and posting flows."""
+    _require_publishable(review)
     inline_findings, summary_findings = _partition_findings(review, diff_index)
     return _summary_body(review, summary_findings, inline_findings=inline_findings)
+
+
+def _require_publishable(review: ReviewResult) -> None:
+    if review.review_status in REVIEW_NON_PUBLISHABLE_STATUSES:
+        raise ValueError(
+            f"GitHub artifacts require a completed review; got {review.review_status!r}."
+        )
 
 
 def write_payload(payload: dict[str, Any], path: str | Path) -> Path:

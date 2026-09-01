@@ -40,7 +40,7 @@ jobs:
 
       - name: Build dry-run review artifacts
         env:
-          AI_REVIEW_MODE: demo
+          AI_REVIEW_MODE: static
           INPUT_HEAD_SHA: ${{ inputs.head_sha }}
           GITHUB_SHA_VALUE: ${{ github.sha }}
         run: |

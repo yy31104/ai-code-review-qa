@@ -19,7 +19,7 @@ repository path + optional base/head
         |               |
         v               v
    TestResult       ReviewResult
-   (host command)   (demo or provider)
+   (host command)   (static or provider)
         |               |
         +-------+-------+
                 v
@@ -72,7 +72,7 @@ Rule shape is settled against real code, not by argument. On a 120-commit corpus
 
 `review_diff()` selects one of two intentional paths:
 
-- `demo`: `static_review` rules create visibly labeled `demo_rules` findings without a network call;
+- `static`: `static_review` rules create visibly labeled `static_rules` findings without a network call;
 - `openai`: the changed-file list and truncated diff are sent to the configured provider and parsed as `ProviderReview`.
 
 `ProviderReview` is deliberately narrower than `ReviewResult`. A model fills a summary and a list of proposed findings, and nothing else. Risk level, review status, provenance, test results and the review decision are computed by the pipeline, so a model response cannot move the merge gate by asserting a field.
@@ -87,7 +87,7 @@ Risk starts as a keyword match over the diff text and is then escalated by `esca
 
 Boundary: grounding establishes attribution. A grounded finding can still be semantically wrong, and a human review remains the decision point.
 
-Mode, status, and source are separate. A failed provider request has source `none` and contains no substituted demo findings. Configuration, provider, and validation failures produce different statuses so downstream code can fail closed.
+Mode, status, and source are separate. Mode records the requested reviewer; status records the run outcome; source records where accepted findings came from. A static review that inspects Python additions is `completed` even when it emits zero findings. An empty or out-of-scope diff is `no_changes`; an in-scope Python change without readable added-line evidence is `abstained`. A failed provider request has source `none` and contains no substituted static findings. Configuration, provider, and validation failures produce different statuses so downstream code can fail closed.
 
 `_estimate_risk()` is a heuristic over changed filenames and tokenized diff text. It is deterministic, not learned, and not a vulnerability detector.
 
@@ -107,7 +107,7 @@ Those are evaluation and human-review questions, not schema questions.
 
 The CLI replaces the provider's placeholder test result with the actual `TestResult`, then calls `derive_final_decision()`.
 
-Provider failure is the first gate and always yields `needs_human_review`. Otherwise `derive_decision()` combines deterministic risk and test status. Even `looks_good` means only that the current deterministic signals did not require escalation; it is not merge approval.
+Provider failure and abstention are fail-closed decision gates and yield `needs_human_review`; `no_changes` records that no automated judgment was made. Otherwise `derive_decision()` combines deterministic risk and test status. Even `looks_good` means only that the current deterministic signals did not require escalation; it is not merge approval.
 
 ### Diff grounding — `diff_index.py`
 
@@ -135,14 +135,16 @@ The mutation path is same-repository only and does not use `pull_request_target`
 
 ## Evaluation boundary
 
-`evals/run_local.py` forces demo mode and loads its case count from the JSONL dataset. It checks deterministic rules, schema output, decisions, and anchoring behavior. This is a regression suite for pipeline changes.
+`evals/run_local.py` forces static mode and loads its case count from the JSONL dataset. It checks deterministic rules, schema output, decisions, statuses, and anchoring behavior. This is a regression suite for pipeline changes.
 
 It does not measure provider precision, recall, false-positive rate, abstention, cost, latency, or reviewer acceptance. Reporting its case/check pass rate as LLM accuracy would be incorrect because the model is not called and the expectations describe current deterministic behavior.
 
 ## Invariants
 
-- Provider failure cannot be represented as a successful demo review.
-- A failed provider run contains no provider or demo findings, emits no GitHub artifacts, and returns a non-zero CLI status.
+- Provider failure cannot be represented as a successful static review.
+- A failed provider run contains no provider or static findings, emits no GitHub artifacts, and returns a non-zero CLI status.
+- `no_changes` and `abstained` emit no GitHub artifacts but are valid CLI outcomes with exit status zero.
+- A completed review with zero findings remains `completed`; status is not derived from finding count.
 - Test results used in the final decision come from the test runner, not the model.
 - Inline comment paths and lines must exist in the current right-side diff.
 - GitHub writes require explicit repository-variable gates.
@@ -157,7 +159,7 @@ Start in `RISKY_TERMS`, `_risk_tokens()`, or `_estimate_risk()` in `llm_reviewer
 
 ### Change the finding schema
 
-Start in `Finding` or `ReviewResult` in `schemas.py`. Then update the provider instructions, deterministic demo builder, HTML template, GitHub reporter, and schema/report/payload tests. A new field is not complete until both provider and demo paths populate it deliberately.
+Start in `Finding` or `ReviewResult` in `schemas.py`. Then update the provider instructions, deterministic static builder, HTML template, GitHub reporter, and schema/report/payload tests. A new field is not complete until both provider and static paths populate it deliberately.
 
 ### Change GitHub posting behavior
 

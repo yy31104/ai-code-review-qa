@@ -294,7 +294,6 @@ _REQUESTS_CALL_RE = re.compile(r"\brequests\.(get|post|put|patch|delete|head|req
 _YAML_LOAD_RE = re.compile(r"\byaml\.load\s*\(")
 _DYNAMIC_EVAL_RE = re.compile(r"(?<![\w.])(?P<call>eval|exec)\s*\(")
 _ASSERT_RE = re.compile(r"^assert\b")
-_TODO_RE = re.compile(r"(?i)#\s*(TODO|FIXME|XXX)\b")
 
 
 def _detect_broad_except(line: LogicalLine, _context: AnalysisContext) -> Optional[str]:
@@ -433,16 +432,6 @@ def _detect_assert_for_validation(line: LogicalLine, _context: AnalysisContext) 
     )
 
 
-def _detect_todo_marker(line: LogicalLine, _context: AnalysisContext) -> Optional[str]:
-    match = _TODO_RE.search(line.raw)
-    if match is None:
-        return None
-    return (
-        f"A `{match.group(1).upper()}` marker is added here. Resolve it or link it to a "
-        "tracked issue before this ships."
-    )
-
-
 RULES: tuple[Rule, ...] = (
     Rule("broad_except", "possible_bug", "medium", 0.8, ("py",), _detect_broad_except),
     Rule("swallowed_exception", "possible_bug", "medium", 0.75, ("py",), _detect_swallowed_exception),
@@ -454,7 +443,6 @@ RULES: tuple[Rule, ...] = (
     Rule("dynamic_eval", "security_reliability", "high", 0.7, ("py",), _detect_dynamic_eval),
     Rule("yaml_unsafe_load", "security_reliability", "high", 0.8, ("py",), _detect_yaml_unsafe_load),
     Rule("request_without_timeout", "security_reliability", "medium", 0.6, ("py",), _detect_request_without_timeout),
-    Rule("todo_marker", "recommended_action", "info", 0.9, ("py",), _detect_todo_marker),
 )
 
 RULE_IDS: tuple[str, ...] = tuple(rule.id for rule in RULES)

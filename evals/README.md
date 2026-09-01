@@ -19,14 +19,14 @@ The JSONL dataset checks the deterministic rules on labeled synthetic diffs:
 - **Rule detection.** Each rule has a case whose diff contains exactly that defect, pinning the rule id, the file, the anchored line, and often the exact evidence string.
 - **Controls.** Each rule also has a near-miss case that must produce nothing: `yaml.safe_load` against `yaml.load`, `requests.get(url, timeout=5)` against a call with no timeout, `ast.literal_eval` against `eval`, parameterised SQL against an f-string statement, `os.getenv` and placeholder values against a real key literal, `assert` in a test file against `assert` in a request handler, and a risk term inside a string literal or comment.
 - **Noise control.** Overlapping rules on one line report once.
-- **Diff shape.** Continuation lines are joined; context lines and deleted lines produce nothing; binary files and files with no hunk produce nothing and are reported as unanchorable.
+- **Diff shape.** Continuation lines are joined; context lines and deleted lines produce nothing; empty and out-of-scope diffs become `no_changes`, while in-scope changes without readable added lines become `abstained`.
 - **Risk and decision.** Keyword risk classification, its camelCase/PascalCase handling, its false-positive guards (`author`, `tokenizer`, docs-only payment wording), the file-count boundary, and escalation of risk to match the most severe finding.
 
 Roughly half the cases are controls. That ratio is the point: a reviewer that never stays silent is not a reviewer.
 
 This is not a model-quality benchmark, and it is not a measurement of usefulness on real pull requests. The diffs are synthetic and were written to exercise the rules. It is a regression baseline that prevents drift.
 
-The eval runner calls the public review engine through `predict()` while forcing deterministic demo mode for each case. It does not call OpenAI and does not require credentials.
+The eval runner calls the public review engine through `predict()` while forcing deterministic static mode for each case. It does not call OpenAI and does not require credentials.
 
 ## Dataset format
 
@@ -56,6 +56,7 @@ Supported expectation keys:
 
 - `risk_level`: exact expected `ReviewResult.risk_level`.
 - `review_decision`: exact expected `ReviewResult.review_decision`.
+- `review_mode`, `review_status`, `review_source`: exact execution-semantics values.
 - `min_counts` / `exact_counts`: list lengths for fields such as `possible_bugs` or `missing_tests`.
 - `required_keywords`: required case-insensitive substrings in a review field.
 - `changed_file_keywords`: required case-insensitive substrings in `changed_files`.
@@ -93,7 +94,7 @@ Keep this dataset deterministic. Provider quality requires a separate versioned 
 ```bash
 git clone --depth 400 https://github.com/pallets/flask.git /tmp/flask
 python evals/real_diffs.py harvest --repo /tmp/flask --count 40 --out evals/data/real_diffs/dev_corpus.jsonl
-AI_REVIEW_MODE=demo python evals/real_diffs.py review \
+AI_REVIEW_MODE=static python evals/real_diffs.py review \
   --dataset evals/data/real_diffs/dev_corpus.jsonl \
   --out evals/data/real_diffs/dev_findings.jsonl \
   --manifest evals/data/real_diffs/dev_manifest.json

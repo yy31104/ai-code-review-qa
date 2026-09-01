@@ -49,7 +49,7 @@ jobs:
 
       - name: Build PR summary artifact
         env:
-          AI_REVIEW_MODE: demo
+          AI_REVIEW_MODE: static
           MERGE_BASE: ${{ steps.range.outputs.merge_base }}
           HEAD_SHA: ${{ steps.range.outputs.head_sha }}
         run: |

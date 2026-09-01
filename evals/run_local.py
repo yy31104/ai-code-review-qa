@@ -75,9 +75,9 @@ def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def predict(case: dict[str, Any]) -> ReviewResult:
-    """Run the public review path in deterministic demo mode for one eval case."""
+    """Run the public review path in deterministic static mode for one eval case."""
     previous_mode = os.environ.get("AI_REVIEW_MODE")
-    os.environ["AI_REVIEW_MODE"] = "demo"
+    os.environ["AI_REVIEW_MODE"] = "static"
     try:
         changed_files = [str(path) for path in case["changed_files"]]
         return review_diff(str(case["diff"]), changed_files)
@@ -90,6 +90,17 @@ def predict(case: dict[str, Any]) -> ReviewResult:
 
 def _run_checks(review: ReviewResult, expected: dict[str, Any]) -> list[CheckResult]:
     checks: list[CheckResult] = []
+
+    for field in ("review_mode", "review_status", "review_source"):
+        if field in expected:
+            actual = getattr(review, field)
+            checks.append(
+                CheckResult(
+                    name=field,
+                    passed=actual == expected[field],
+                    detail=f"expected {expected[field]!r}, got {actual!r}",
+                )
+            )
 
     if "risk_level" in expected:
         checks.append(

@@ -48,7 +48,7 @@ For every code change:
 - Run the relevant local checks before finishing.
 - Add or update tests when behavior changes.
 - Add or update eval cases when review behavior changes.
-- Keep output deterministic in demo mode.
+- Keep output deterministic in static mode.
 - Update README or docs when commands, artifacts, or public behavior change.
 - Summarize files changed, commands run, test/eval results, risks, and next PR.
 
@@ -66,7 +66,7 @@ Never fill a `verdict` field in a real-diff findings file. Those labels are the 
 Core CLI smoke test:
 
 ```bash
-AI_REVIEW_MODE=demo python backend/app/main.py --repo . --base HEAD~1 --head HEAD --output backend/reports/review_report.html
+AI_REVIEW_MODE=static python backend/app/main.py --repo . --base HEAD~1 --head HEAD --output backend/reports/review_report.html
 ```
 
 ## Review-output rules
@@ -81,7 +81,7 @@ AI_REVIEW_MODE=demo python backend/app/main.py --repo . --base HEAD~1 --head HEA
 - Do not inflate the number of comments; prioritize high-confidence, actionable findings.
 - Findings should help a developer decide what to test, fix, or manually inspect.
 - Demo mode must remain safe, deterministic, and credential-free.
-- Provider failures must have an explicit failure status, contain no substituted demo findings, and return a non-zero CLI status.
+- Provider failures must have an explicit failure status, contain no substituted static findings, and return a non-zero CLI status.
 
 ## Security rules
 

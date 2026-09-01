@@ -1,6 +1,6 @@
 # AI-assisted PR review CLI
 
-This repository is an experimental, human-in-the-loop reviewer for bounded Python/backend diffs. It reads a Git diff, runs eleven named deterministic rules over the lines the diff adds, optionally asks an OpenAI model for further proposed findings, checks every finding against the diff it claims to describe, and writes artifacts for a developer to inspect.
+This repository is an experimental, human-in-the-loop reviewer for bounded Python/backend diffs. It reads a Git diff, runs ten named deterministic rules over the lines the diff adds, optionally asks an OpenAI model for further proposed findings, checks every finding against the diff it claims to describe, and writes artifacts for a developer to inspect.
 
 It is not an autonomous reviewer, a security scanner, or evidence that an LLM finds bugs accurately. The offline eval suite measures the deterministic rules on labeled synthetic diffs. A labeled real-diff evaluation of provider quality has not been done yet, so nothing here should be read as a model accuracy claim.
 
@@ -19,14 +19,14 @@ python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 python -m pip install -r backend/requirements.txt
 
-AI_REVIEW_MODE=demo python backend/app/main.py \
+AI_REVIEW_MODE=static python backend/app/main.py \
   --repo . \
   --base HEAD~1 \
   --head HEAD \
   --output backend/reports/review_report.html
 ```
 
-This command reviews the most recent commit range and runs this repository's detected test command. Demo mode runs the deterministic rules only: no model call, no credentials, and findings labelled `demo_rules` with the rule that produced them.
+This command reviews the most recent commit range and runs this repository's detected test command. Static mode runs the deterministic rules only: no model call, no credentials, and findings labelled `static_rules` with the rule that produced them.
 
 > Only run the CLI against a repository you trust. The test runner executes `pytest`, `npm test`, or `dotnet test` on the host. Its timeout is not a sandbox.
 
@@ -60,7 +60,6 @@ Every finding the reviewer produces without a model comes from one of these rule
 | `dynamic_eval` | security_reliability | high | `eval()` / `exec()`, excluding `ast.literal_eval` |
 | `yaml_unsafe_load` | security_reliability | high | `yaml.load()` with no explicit loader |
 | `request_without_timeout` | security_reliability | medium | a `requests` call with no `timeout=`, outside test files |
-| `todo_marker` | recommended_action | info | an added `TODO`/`FIXME`/`XXX` |
 
 What the rules deliberately do not do: they read only the lines a diff adds, they match lexically, and they have no import resolution, type information, or cross-function data flow. A match means the shape is usually a defect, not that the line is proven wrong. `severity` and `confidence` carry that distinction, and a human still decides.
 
@@ -96,7 +95,7 @@ git clone --depth 400 https://github.com/pallets/flask.git /tmp/flask
 python evals/real_diffs.py harvest \
   --repo /tmp/flask --count 40 --out evals/data/real_diffs/dev_corpus.jsonl
 
-AI_REVIEW_MODE=demo python evals/real_diffs.py review \
+AI_REVIEW_MODE=static python evals/real_diffs.py review \
   --dataset evals/data/real_diffs/dev_corpus.jsonl \
   --out evals/data/real_diffs/dev_findings.jsonl \
   --manifest evals/data/real_diffs/dev_manifest.json
@@ -132,7 +131,7 @@ Ten of the thirteen first-pass false positives had one cause: the diff touched a
 Two things the numbers make concrete for the next step:
 
 - At 0.008 findings per commit, reaching thirty judged findings needs roughly 3,600 commits. A held-out corpus has to be far larger than 120, or drawn from code that is reviewed less rigorously than these three libraries.
-- 99% of commits were reviewed silently. That is a statement about output volume and nothing else. Measuring what the reviewer *misses* requires adjudicating a sample of those silent commits, which has not been done.
+- 119 of 120 commits produced no finding. Four of those runs were `abstained` because they had no readable added Python lines; the remaining 115 completed-silent commits form the recall-probe population. These are output-volume and input-state facts, not evidence that the silent commits were clean.
 
 `recall-probe` creates that deterministic silent-commit sample without filling any labels, and `recall-score` reports the human-recorded miss rate and rule-scope breakdown. Despite the command name, this is a miss audit rather than classical `TP / (TP + FN)` recall. See [`evals/RECALL_LABELING_GUIDE.md`](evals/RECALL_LABELING_GUIDE.md).
 
@@ -155,19 +154,21 @@ The eval set is synthetic: the diffs were written to exercise the rules. It show
 
 `ReviewResult` records three separate facts:
 
-- `review_mode`: what was requested (`demo` or `openai`);
+- `review_mode`: what was requested (`static` or `openai`);
 - `review_status`: whether that request completed;
-- `review_source`: where the findings came from (`demo_rules`, `provider`, or `none`).
+- `review_source`: where the findings came from (`static_rules`, `provider`, or `none`).
 
 | Situation | Status | Source | CLI result |
 | --- | --- | --- | --- |
-| Intentional deterministic run | `demo` | `demo_rules` | success |
+| Deterministic run with reviewable Python additions | `completed` | `static_rules` | success; artifacts allowed |
 | Provider output parsed and validated | `completed` | `provider` | success |
 | Missing/unknown configuration | `configuration_error` | `none` | exit 2 |
 | Provider request failed | `provider_failed` | `none` | exit 2 |
 | Provider output failed schema validation | `invalid_output` | `none` | exit 2 |
+| No diff or no Python files in scope | `no_changes` | `none` | success; no GitHub artifacts |
+| Python change exists but has no readable added lines | `abstained` | `none` | success; no GitHub artifacts |
 
-Failure runs still save an HTML artifact with the status and a non-sensitive error summary. They do not substitute demo findings or emit GitHub artifacts for failed provider findings.
+`review_mode` says which reviewer was requested; `review_status` says what happened during this run. A completed review with zero findings remains `completed`: status is never inferred from `findings == 0`. Failure, abstention, and no-change runs still save an HTML artifact, but do not emit GitHub artifacts. Provider failures never substitute static findings.
 
 ## Optional provider mode
 
@@ -205,7 +206,7 @@ The eval runner derives its case and check totals from `evals/data/golden_cases.
 To inspect uncommitted changes in a trusted checkout:
 
 ```bash
-AI_REVIEW_MODE=demo python backend/app/main.py \
+AI_REVIEW_MODE=static python backend/app/main.py \
   --repo /path/to/trusted/repository \
   --output reports/review.html
 ```
@@ -217,7 +218,7 @@ Untracked files appear in the changed-file list, but Git does not provide line-l
 Generate artifacts locally without posting anything:
 
 ```bash
-AI_REVIEW_MODE=demo python backend/app/main.py \
+AI_REVIEW_MODE=static python backend/app/main.py \
   --repo . \
   --base HEAD~1 \
   --head HEAD \
@@ -257,7 +258,7 @@ Fork PRs are skipped by the mutation workflow. It uses `pull_request`, not `pull
 - Code moved between files still produces a false positive; attribution only sees one file's change blocks.
 - There is no frozen, labeled real-diff provider evaluation yet, so there is no evidence that the model path beats the rule path.
 - The eval diffs are synthetic and short. Real pull requests are longer, noisier, and will surface false positives these cases do not.
-- The rules cover Python only, and only eleven patterns of it.
+- The rules cover Python only, and only ten patterns of it.
 - Provider raw output, token usage, latency, and cost are not persisted yet.
 - Test execution is host-level and unsafe for arbitrary untrusted repositories.
 - The project is not a GitHub App and does not mutate fork PRs.

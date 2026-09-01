@@ -2,7 +2,7 @@
 
 ## Overview
 
-`ai-code-review-qa` runs in deterministic demo mode by default. OpenAI-powered review mode is opt-in and requires explicit environment configuration.
+`ai-code-review-qa` runs in deterministic static mode by default. OpenAI-powered review mode is opt-in and requires explicit environment configuration.
 
 ## No-Store Policy
 
@@ -14,7 +14,7 @@ The `reports/github/` directory is also gitignored and intended for dry-run GitH
 
 ## Network and Egress Boundary
 
-In demo mode, the review engine does not call OpenAI.
+In static mode, the review engine does not call OpenAI.
 
 The user-configured project test command may still do whatever that project does. This tool detects and runs supported test commands, but it does not control third-party test behavior, dependency behavior, or network access from the project under review.
 
@@ -38,7 +38,7 @@ Structured findings may include code-derived messages, file paths, line numbers,
 
 Test output path sanitization maps the repository root to `<repo>` and normalizes path separators.
 
-The committed sample report should be demo-mode and credential-free.
+The committed sample report should be static-mode and credential-free.
 
 ## GitHub Review Payloads (Dry Run)
 
@@ -64,7 +64,7 @@ The no-store boundary still holds for this tool: it does not add a database, ser
 
 ## OpenAI Optional-Mode Boundary
 
-OpenAI mode is off by default. API, configuration, and schema-validation failures receive distinct `review_status` values, produce no substituted demo findings or GitHub artifacts, and make the CLI return status `2` after saving the failure report.
+OpenAI mode is off by default. API, configuration, and schema-validation failures receive distinct `review_status` values, produce no substituted static findings or GitHub artifacts, and make the CLI return status `2` after saving the failure report.
 
 OpenAI output is validated with the Pydantic `ReviewResult` schema before report generation. Structural validation does not establish semantic correctness.
 

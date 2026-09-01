@@ -461,33 +461,33 @@
         <h1>AI Code Review Report</h1>
         <p class="subtitle">
           <span class="engine-label">Review pipeline</span>
-          &nbsp;&middot;&nbsp;mode: demo
-          &nbsp;&middot;&nbsp;status: demo
-          &nbsp;&middot;&nbsp;source: demo_rules
+          &nbsp;&middot;&nbsp;mode: static
+          &nbsp;&middot;&nbsp;status: completed
+          &nbsp;&middot;&nbsp;source: static_rules
           &nbsp;&middot;&nbsp;
-          Generated <time>2026-09-01 16:37</time>
+          Generated <time>2026-09-01 22:42</time>
         </p>
       </div>
       <div style="padding-top:4px;">
-        <span class="badge badge-lgtm" style="font-size:13px;padding:4px 12px;">Decision: Looks Good - Verify &amp; Merge</span>
+        <span class="badge badge-needs-review" style="font-size:13px;padding:4px 12px;">Decision: Needs Human Review</span>
       </div>
     </div>
 
     <div class="review-provenance">
-        <strong>Deterministic demo output.</strong>
-        <p>No model was called. These rule-generated findings test pipeline behavior, not model review quality.</p>
+        <strong>Deterministic static-analysis output.</strong>
+        <p>No model was called. Findings come from named rules over added Python lines.</p>
     </div>
 
     <!-- ── Summary cards ── -->
     <div class="summary-grid">
       <div class="stat-card">
         <div class="stat-label">Changed Files</div>
-        <div class="stat-value">4</div>
+        <div class="stat-value">6</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Risk Level</div>
         <div class="stat-value" style="font-size:16px;margin-top:4px;">
-          <span class="badge badge-low">Low</span>
+          <span class="badge badge-high">High</span>
         </div>
       </div>
       <div class="stat-card">
@@ -507,7 +507,7 @@
       <div class="stat-card">
         <div class="stat-label">Review Decision</div>
         <div class="stat-value-sm" style="margin-top:6px;">
-          <span class="badge badge-lgtm">Decision: Looks Good - Verify &amp; Merge</span>
+          <span class="badge badge-needs-review">Decision: Needs Human Review</span>
         </div>
       </div>
     </div>
@@ -516,7 +516,7 @@
     <section class="section">
       <h2>Project Summary</h2>
       <div class="section-body">
-        <p>Deterministic rules inspected 193 added line(s) across 4 file(s) of 4 changed file(s). No model was called. No rule matched.</p>
+        <p>Deterministic rules inspected 937 added line(s) across 6 file(s) of 6 changed file(s). No model was called. No rule matched.</p>
       </div>
     </section>
 
@@ -524,14 +524,16 @@
     <section class="section">
       <h2>
         Changed Files
-        <span class="h2-count">4 file(s)</span>
+        <span class="h2-count">6 file(s)</span>
       </h2>
       <div class="section-body">
           <ul class="file-list">
               <li>README.md</li>
-              <li>docs/DATA_HANDLING.md</li>
-              <li>docs/STALE_RESOLVE_RUNBOOK.md</li>
-              <li>docs/portfolio-engineering-summary.md</li>
+              <li>docs/adr/0001-evidence-grounded-python-pr-review.md</li>
+              <li>evals/README.md</li>
+              <li>evals/RECALL_LABELING_GUIDE.md</li>
+              <li>evals/real_diffs.py</li>
+              <li>tests/test_real_diffs.py</li>
           </ul>
       </div>
     </section>
@@ -588,7 +590,7 @@
             <span class="badge badge-pass">&#10003; Passed</span>
           <span>
             <strong>python</strong>
-              &mdash; 197 passed in 1.89s
+              &mdash; 227 passed in 1.89s
           </span>
         </div>
 
@@ -617,28 +619,29 @@ rootdir: &lt;repo&gt;
 configfile: pytest.ini
 testpaths: tests
 plugins: anyio-4.13.0
-collected 197 items
+collected 227 items
 
-tests/test_anchored_findings.py .................                        [  8%]
-tests/test_diff_positioning.py ...............                           [ 16%]
-tests/test_emit_github_review_cli.py ..                                  [ 17%]
-tests/test_eval_harness.py ....                                          [ 19%]
-tests/test_finding_grounding.py ..........                               [ 24%]
-tests/test_github_comment_upsert.py .......                              [ 27%]
-tests/test_github_review_reporter.py ........................            [ 40%]
-tests/test_inline_resolve_apply.py .........                             [ 44%]
-tests/test_inline_resolve_plan.py ................                       [ 52%]
-tests/test_inline_revalidate.py ..........                               [ 57%]
-tests/test_inline_review_payload.py ..................                   [ 67%]
-tests/test_inline_stale.py ..........                                    [ 72%]
-tests/test_inline_upsert.py ......                                       [ 75%]
-tests/test_pr_range_summary.py .                                         [ 75%]
-tests/test_real_diffs.py ................                                [ 83%]
-tests/test_review_decision.py ...........                                [ 89%]
-tests/test_risk_estimation.py ......                                     [ 92%]
+tests/test_anchored_findings.py ..................                       [  7%]
+tests/test_diff_positioning.py ...............                           [ 14%]
+tests/test_emit_github_review_cli.py ..                                  [ 15%]
+tests/test_eval_harness.py ....                                          [ 17%]
+tests/test_finding_grounding.py ..........                               [ 21%]
+tests/test_github_comment_upsert.py .......                              [ 24%]
+tests/test_github_review_reporter.py .............................       [ 37%]
+tests/test_inline_resolve_apply.py .........                             [ 41%]
+tests/test_inline_resolve_plan.py ................                       [ 48%]
+tests/test_inline_revalidate.py ..........                               [ 52%]
+tests/test_inline_review_payload.py ..................                   [ 60%]
+tests/test_inline_stale.py ..........                                    [ 65%]
+tests/test_inline_upsert.py ......                                       [ 67%]
+tests/test_main_status_matrix.py ......                                  [ 70%]
+tests/test_pr_range_summary.py .                                         [ 70%]
+tests/test_real_diffs.py ..................................              [ 85%]
+tests/test_review_decision.py ...........                                [ 90%]
+tests/test_risk_estimation.py ......                                     [ 93%]
 tests/test_static_review.py ...............                              [100%]
 
-============================= 197 passed in 1.89s ==============================</pre>
+============================= 227 passed in 1.89s ==============================</pre>
           </details>
 
       </div>
@@ -660,12 +663,12 @@ tests/test_static_review.py ...............                              [100%]
       <h2>Review Decision</h2>
       <div class="section-body">
         <div class="decision-block">
-          <div class="decision-icon decision-icon-low" role="img" aria-label="Looks Good - Verify &amp; Merge decision icon">&#10003;</div>
+          <div class="decision-icon decision-icon-high" role="img" aria-label="Needs Human Review decision icon">!</div>
           <div class="decision-content">
             <h3>
-              <span class="badge badge-lgtm" style="font-size:13px;padding:3px 12px;">Decision: Looks Good - Verify &amp; Merge</span>
+              <span class="badge badge-needs-review" style="font-size:13px;padding:3px 12px;">Decision: Needs Human Review</span>
             </h3>
-            <p><strong>Explanation:</strong> Looks good from the deterministic risk and test signals, but a developer should still verify the AI findings before merging.</p>
+            <p><strong>Explanation:</strong> High-risk changes should receive human review; a developer should inspect the AI findings and automated test results before merging.</p>
           </div>
         </div>
       </div>

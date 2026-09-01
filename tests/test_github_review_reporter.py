@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import evals.run_local  # noqa: F401
+import pytest
 from diff_index import parse_unified_diff
 from github_review_reporter import (
     MAX_MESSAGE_CHARS,
@@ -199,9 +200,9 @@ def test_build_review_payload_shape_and_summary_counts() -> None:
     assert "@\u200bteam" in payload["comments"][0]["body"]
     body = payload["body"]
     assert SUMMARY_MARKER in body
-    assert "Review mode: demo" in body
-    assert "Review status: demo" in body
-    assert "Finding source: demo\\_rules" in body
+    assert "Review mode: static" in body
+    assert "Review status: completed" in body
+    assert "Finding source: static\\_rules" in body
     assert "Verdict: looks\\_good" in body
     assert "Risk level: Low" in body
     assert "Test status: passed" in body
@@ -210,6 +211,21 @@ def test_build_review_payload_shape_and_summary_counts() -> None:
     assert "Human-in-the-loop note" in body
     assert "#### General" in body
     assert "#\u200b123" in body
+
+
+@pytest.mark.parametrize(
+    "status",
+    ["configuration_error", "provider_failed", "invalid_output", "abstained", "no_changes"],
+)
+def test_non_publishable_statuses_cannot_build_github_artifacts(status: str) -> None:
+    review = _review([])
+    review.review_status = status  # type: ignore[assignment]
+    review.review_source = "none"
+
+    with pytest.raises(ValueError, match="require a completed review"):
+        build_review_payload(review, _diff_index())
+    with pytest.raises(ValueError, match="require a completed review"):
+        build_summary_comment_body(review, _diff_index())
 
 
 def test_build_summary_comment_body_contains_marker_and_review_context() -> None:
@@ -223,7 +239,7 @@ def test_build_summary_comment_body_contains_marker_and_review_context() -> None
     body = build_summary_comment_body(review, _diff_index())
 
     assert SUMMARY_MARKER in body
-    assert "Review status: demo" in body
+    assert "Review status: completed" in body
     assert "Verdict: looks\\_good" in body
     assert "Risk level: Low" in body
     assert "Test status: passed" in body

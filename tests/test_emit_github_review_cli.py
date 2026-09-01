@@ -42,7 +42,7 @@ def test_cli_emits_github_review_payload_without_network(tmp_path: Path) -> None
     inline_path = tmp_path / "reports" / "github" / "inline-review.json"
     fingerprints_path = tmp_path / "reports" / "github" / "finding-fingerprints.json"
     env = os.environ.copy()
-    env["AI_REVIEW_MODE"] = "demo"
+    env["AI_REVIEW_MODE"] = "static"
 
     completed = subprocess.run(
         [
@@ -131,7 +131,7 @@ def test_cli_returns_nonzero_and_persists_configuration_failure(tmp_path: Path) 
     assert completed.returncode == 2
     assert "Review status: configuration_error" in completed.stdout
     assert "Review failed:" in completed.stderr
-    assert "Skipped GitHub artifacts" in completed.stderr
+    assert "is not publishable" in completed.stderr
     assert output_path.exists()
     assert not summary_path.exists()
     assert "Review did not complete." in output_path.read_text(encoding="utf-8")

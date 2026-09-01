@@ -36,7 +36,7 @@ The tool must never execute commands derived from model output. Automated test e
 
 The test runner is for trusted checkouts only. A subprocess timeout is not a hostile-code sandbox and does not isolate the host filesystem, environment, network, processes, CPU, or memory.
 
-Provider configuration, request, and schema failures must remain explicit non-success states. They must not be relabeled as successful demo reviews or contain substituted demo findings.
+Provider configuration, request, and schema failures must remain explicit non-success states. They must not be relabeled as successful static reviews or contain substituted static findings.
 
 GitHub review payload generation treats diff-derived and model-derived text as untrusted Markdown. The payload builder escapes HTML-sensitive characters, Markdown link and emphasis controls, backticks, mentions, issue autolinks, code-fence breakout attempts, and leading block-level Markdown before placing finding text in comment bodies.
 

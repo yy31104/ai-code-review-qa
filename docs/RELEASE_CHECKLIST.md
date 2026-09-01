@@ -8,7 +8,7 @@ Use this checklist before merging production-trust, review-engine, or report-art
 python -m pytest -q
 python evals/run_local.py --out reports/evals/results.json
 python evals/render_report.py --in reports/evals/results.json --md reports/evals/summary.md --html reports/evals/summary.html
-AI_REVIEW_MODE=demo python backend/app/main.py --repo . --base HEAD~1 --head HEAD --output backend/reports/review_report.html
+AI_REVIEW_MODE=static python backend/app/main.py --repo . --base HEAD~1 --head HEAD --output backend/reports/review_report.html
 git diff --check
 ```
 
@@ -23,7 +23,7 @@ git diff --check
 - `LICENSE` and `SECURITY.md` present
 - Markdown escaping tests pass
 - report displays review mode, status, and finding source
-- provider failure contains no demo findings and returns status `2`
+- provider failure contains no static findings and returns status `2`
 - dry-run PR comment payload workflow is `workflow_dispatch` only
 - dry-run PR comment payload workflow has `contents: read`
 - dry-run PR comment payload build job has no `pull-requests: write`
