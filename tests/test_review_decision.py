@@ -7,7 +7,7 @@ import pytest
 # Importing the eval runner puts backend/app on sys.path, matching the existing
 # test setup for app modules.
 import evals.run_local  # noqa: F401
-from llm_reviewer import derive_decision
+from llm_reviewer import derive_decision, derive_final_decision
 from report_generator import generate_report
 from schemas import ReviewResult, TestResult as ReviewTestResult
 
@@ -71,3 +71,29 @@ def test_low_passing_report_renders_lgtm_decision(tmp_path: Path) -> None:
     assert "Decision: Looks Good - Verify &amp; Merge" in html
     assert "aria-label=\"Looks Good - Verify &amp; Merge decision icon\"" in html
     assert "Decision: Needs Human Review" not in html
+    assert "Deterministic static-analysis output." in html
+    assert "No model was called." in html
+
+
+def test_provider_failure_forces_human_review_and_renders_provenance(tmp_path: Path) -> None:
+    test_result = ReviewTestResult(command="python -m pytest", passed=True)
+    review = ReviewResult(
+        review_mode="openai",
+        review_status="provider_failed",
+        review_source="none",
+        review_status_detail="OpenAI request failed with TimeoutError.",
+        project_summary="The requested review did not complete.",
+        changed_files=["backend/app/settings.py"],
+        risk_level="Low",
+        automated_test_results=test_result,
+        human_review_decision="placeholder",
+    )
+
+    review.review_decision, review.human_review_decision = derive_final_decision(review, test_result)
+    report_path = generate_report(review, tmp_path / "failed-report.html")
+    html = report_path.read_text(encoding="utf-8")
+
+    assert review.review_decision == "needs_human_review"
+    assert "Review did not complete." in html
+    assert "OpenAI request failed with TimeoutError." in html
+    assert "No provider findings were produced." in html

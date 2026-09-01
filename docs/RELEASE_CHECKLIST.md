@@ -8,19 +8,22 @@ Use this checklist before merging production-trust, review-engine, or report-art
 python -m pytest -q
 python evals/run_local.py --out reports/evals/results.json
 python evals/render_report.py --in reports/evals/results.json --md reports/evals/summary.md --html reports/evals/summary.html
-$env:AI_REVIEW_MODE = "demo"; python backend/app/main.py --repo . --output backend/reports/review_report.html
+AI_REVIEW_MODE=static python backend/app/main.py --repo . --base HEAD~1 --head HEAD --output backend/reports/review_report.html
 git diff --check
 ```
 
 ## Trust Gates
 
 - no `.env` staged
+- no `.env` or credential file included in shared archives
 - no secrets in the sample report
 - `reports/evals/` not committed
 - GitHub Actions permissions stay minimal
 - branch protection checks enabled
 - `LICENSE` and `SECURITY.md` present
 - Markdown escaping tests pass
+- report displays review mode, status, and finding source
+- provider failure contains no static findings and returns status `2`
 - dry-run PR comment payload workflow is `workflow_dispatch` only
 - dry-run PR comment payload workflow has `contents: read`
 - dry-run PR comment payload build job has no `pull-requests: write`

@@ -79,6 +79,24 @@
       color: var(--text);
     }
 
+    .review-provenance {
+      margin: -8px 0 20px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--panel);
+    }
+
+    .review-provenance.failed {
+      border-color: var(--danger);
+      background: var(--danger-bg);
+    }
+
+    .review-provenance p {
+      margin: 4px 0 0;
+      color: var(--muted);
+    }
+
     /* ── Summary grid ── */
     .summary-grid {
       display: grid;
@@ -251,6 +269,16 @@
       font-size: 12px;
     }
 
+    .anchored-finding-evidence {
+      margin: 6px 0 0;
+      padding: 8px 10px;
+      overflow-x: auto;
+      border-radius: 6px;
+      background: #f6f8fa;
+      border: 1px solid #d0d7de;
+      font-size: 12px;
+      line-height: 1.45;
+    }
     .anchored-finding-message {
       color: var(--text);
       font-size: 13px;
@@ -432,10 +460,12 @@
       <div>
         <h1>AI Code Review Report</h1>
         <p class="subtitle">
-          <span class="engine-label">AI review engine</span>
-            demo mode using structured AI review output
+          <span class="engine-label">Review pipeline</span>
+          &nbsp;&middot;&nbsp;mode: static
+          &nbsp;&middot;&nbsp;status: completed
+          &nbsp;&middot;&nbsp;source: static_rules
           &nbsp;&middot;&nbsp;
-          Generated <time>2026-06-17 23:05</time>
+          Generated <time>2026-09-01 22:42</time>
         </p>
       </div>
       <div style="padding-top:4px;">
@@ -443,11 +473,16 @@
       </div>
     </div>
 
+    <div class="review-provenance">
+        <strong>Deterministic static-analysis output.</strong>
+        <p>No model was called. Findings come from named rules over added Python lines.</p>
+    </div>
+
     <!-- ── Summary cards ── -->
     <div class="summary-grid">
       <div class="stat-card">
         <div class="stat-label">Changed Files</div>
-        <div class="stat-value">14</div>
+        <div class="stat-value">6</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Risk Level</div>
@@ -463,11 +498,11 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">Possible Bugs</div>
-        <div class="stat-value">2</div>
+        <div class="stat-value">0</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Missing Tests</div>
-        <div class="stat-value">1</div>
+        <div class="stat-value">0</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Review Decision</div>
@@ -481,7 +516,7 @@
     <section class="section">
       <h2>Project Summary</h2>
       <div class="section-body">
-        <p>Reviewed 14 changed file(s) via the AI review engine. Running in demo mode using structured AI review output.</p>
+        <p>Deterministic rules inspected 937 added line(s) across 6 file(s) of 6 changed file(s). No model was called. No rule matched.</p>
       </div>
     </section>
 
@@ -489,24 +524,16 @@
     <section class="section">
       <h2>
         Changed Files
-        <span class="h2-count">14 file(s)</span>
+        <span class="h2-count">6 file(s)</span>
       </h2>
       <div class="section-body">
           <ul class="file-list">
-              <li>.github/workflows/pr-comment.yml</li>
               <li>README.md</li>
-              <li>SECURITY.md</li>
-              <li>backend/app/github_comment_upsert.py</li>
-              <li>backend/app/github_constants.py</li>
-              <li>backend/app/github_review_reporter.py</li>
-              <li>backend/app/main.py</li>
-              <li>backend/reports/review_report.html</li>
-              <li>docs/DATA_HANDLING.md</li>
-              <li>docs/RELEASE_CHECKLIST.md</li>
-              <li>docs/portfolio-engineering-summary.md</li>
-              <li>tests/test_emit_github_review_cli.py</li>
-              <li>tests/test_github_comment_upsert.py</li>
-              <li>tests/test_github_review_reporter.py</li>
+              <li>docs/adr/0001-evidence-grounded-python-pr-review.md</li>
+              <li>evals/README.md</li>
+              <li>evals/RECALL_LABELING_GUIDE.md</li>
+              <li>evals/real_diffs.py</li>
+              <li>tests/test_real_diffs.py</li>
           </ul>
       </div>
     </section>
@@ -515,13 +542,10 @@
     <section class="section">
       <h2>
         Possible Bugs
-        <span class="h2-count">2 item(s)</span>
+        <span class="h2-count">0 item(s)</span>
       </h2>
       <div class="section-body">
-            <ul class="finding-list">
-        <li>`pr-comment.yml`: validate inputs at function boundaries - check for None, empty values, and unexpected types.</li>
-        <li>Error paths may fail silently; confirm each failure branch returns a descriptive message or raises a typed exception.</li>
-    </ul>
+            <p class="empty">None reported.</p>
 
       </div>
     </section>
@@ -530,12 +554,10 @@
     <section class="section">
       <h2>
         Missing Tests
-        <span class="h2-count">1 item(s)</span>
+        <span class="h2-count">0 item(s)</span>
       </h2>
       <div class="section-body">
-            <ul class="finding-list">
-        <li>Boundary-value coverage is missing: add tests for min/max inputs, empty collections, and off-by-one conditions.</li>
-    </ul>
+            <p class="empty">None reported.</p>
 
       </div>
     </section>
@@ -544,11 +566,7 @@
     <section class="section">
       <h2>Suggested Test Cases</h2>
       <div class="section-body">
-            <ul class="finding-list">
-        <li>Happy-path: call the primary function in `pr-comment.yml` with valid inputs and assert the expected return value.</li>
-        <li>Invalid-input: pass None, an empty string, or an out-of-range value and assert a clear error is raised.</li>
-        <li>Regression: add a test that pins any behavior this change is specifically intended to fix or improve.</li>
-    </ul>
+            <p class="empty">None reported.</p>
 
       </div>
     </section>
@@ -557,10 +575,7 @@
     <section class="section">
       <h2>Security &amp; Reliability Concerns</h2>
       <div class="section-body">
-            <ul class="finding-list">
-        <li>Do not log secrets, tokens, or user-identifiable data - scrub sensitive fields before writing to any log sink.</li>
-        <li>Wrap subprocess calls and external I/O in try/except to prevent unhandled exceptions from crashing the process.</li>
-    </ul>
+            <p class="empty">None reported.</p>
 
       </div>
     </section>
@@ -575,7 +590,7 @@
             <span class="badge badge-pass">&#10003; Passed</span>
           <span>
             <strong>python</strong>
-              &mdash; 78 passed in 1.76s
+              &mdash; 227 passed in 1.89s
           </span>
         </div>
 
@@ -598,24 +613,35 @@
 
           <details>
             <summary>View full test output</summary>
-            <pre>============================= test session starts =============================
-platform win32 -- Python 3.11.9, pytest-9.0.2, pluggy-1.6.0
+            <pre>============================= test session starts ==============================
+platform darwin -- Python 3.12.13, pytest-9.0.3, pluggy-1.6.0
 rootdir: &lt;repo&gt;
 configfile: pytest.ini
 testpaths: tests
 plugins: anyio-4.13.0
-collected 78 items
+collected 227 items
 
-tests/test_anchored_findings.py .............                            [ 16%]
-tests/test_diff_positioning.py .............                             [ 33%]
-tests/test_emit_github_review_cli.py .                                   [ 34%]
-tests/test_eval_harness.py ....                                          [ 39%]
-tests/test_github_comment_upsert.py .......                              [ 48%]
-tests/test_github_review_reporter.py ........................            [ 79%]
-tests/test_review_decision.py ..........                                 [ 92%]
-tests/test_risk_estimation.py ......                                     [100%]
+tests/test_anchored_findings.py ..................                       [  7%]
+tests/test_diff_positioning.py ...............                           [ 14%]
+tests/test_emit_github_review_cli.py ..                                  [ 15%]
+tests/test_eval_harness.py ....                                          [ 17%]
+tests/test_finding_grounding.py ..........                               [ 21%]
+tests/test_github_comment_upsert.py .......                              [ 24%]
+tests/test_github_review_reporter.py .............................       [ 37%]
+tests/test_inline_resolve_apply.py .........                             [ 41%]
+tests/test_inline_resolve_plan.py ................                       [ 48%]
+tests/test_inline_revalidate.py ..........                               [ 52%]
+tests/test_inline_review_payload.py ..................                   [ 60%]
+tests/test_inline_stale.py ..........                                    [ 65%]
+tests/test_inline_upsert.py ......                                       [ 67%]
+tests/test_main_status_matrix.py ......                                  [ 70%]
+tests/test_pr_range_summary.py .                                         [ 70%]
+tests/test_real_diffs.py ..................................              [ 85%]
+tests/test_review_decision.py ...........                                [ 90%]
+tests/test_risk_estimation.py ......                                     [ 93%]
+tests/test_static_review.py ...............                              [100%]
 
-============================= 78 passed in 1.76s ==============================</pre>
+============================= 227 passed in 1.89s ==============================</pre>
           </details>
 
       </div>
@@ -626,9 +652,7 @@ tests/test_risk_estimation.py ......                                     [100%]
       <h2>Recommended Actions</h2>
       <div class="section-body">
             <ul class="finding-list">
-        <li>Address the possible bugs listed above before requesting a final review.</li>
-        <li>Ensure all automated tests pass in CI before merging.</li>
-        <li>Expand test coverage around the highest-risk code paths identified in this report.</li>
+        <li>No deterministic rule matched this diff. That is not a pass: a human still has to read the change.</li>
     </ul>
 
       </div>
@@ -654,123 +678,14 @@ tests/test_risk_estimation.py ......                                     [100%]
     <section class="section">
       <h2>
         Anchored Findings
-        <span class="h2-count">11 item(s)</span>
+        <span class="h2-count">0 item(s)</span>
       </h2>
       <div class="section-body">
-          <ul class="anchored-finding-list">
-              <li>
-                <div class="anchored-finding-meta">
-                    <code>.github/workflows/pr-comment.yml</code>
-                  <span>line 5</span>
-                  <span>possible_bug</span>
-                  <span class="badge badge-medium">medium</span>
-                  <span>50% confidence</span>
-                </div>
-                <p class="anchored-finding-message">`pr-comment.yml`: validate inputs at function boundaries - check for None, empty values, and unexpected types.</p>
-              </li>
-              <li>
-                <div class="anchored-finding-meta">
-                    <code>.github/workflows/pr-comment.yml</code>
-                  <span>line 5</span>
-                  <span>possible_bug</span>
-                  <span class="badge badge-medium">medium</span>
-                  <span>50% confidence</span>
-                </div>
-                <p class="anchored-finding-message">Error paths may fail silently; confirm each failure branch returns a descriptive message or raises a typed exception.</p>
-              </li>
-              <li>
-                <div class="anchored-finding-meta">
-                    <code>.github/workflows/pr-comment.yml</code>
-                  <span>line 5</span>
-                  <span>security_reliability</span>
-                  <span class="badge badge-high">high</span>
-                  <span>60% confidence</span>
-                </div>
-                <p class="anchored-finding-message">Do not log secrets, tokens, or user-identifiable data - scrub sensitive fields before writing to any log sink.</p>
-              </li>
-              <li>
-                <div class="anchored-finding-meta">
-                    <code>.github/workflows/pr-comment.yml</code>
-                  <span>line 5</span>
-                  <span>security_reliability</span>
-                  <span class="badge badge-high">high</span>
-                  <span>60% confidence</span>
-                </div>
-                <p class="anchored-finding-message">Wrap subprocess calls and external I/O in try/except to prevent unhandled exceptions from crashing the process.</p>
-              </li>
-              <li>
-                <div class="anchored-finding-meta">
-                    <code>.github/workflows/pr-comment.yml</code>
-                  <span>line 5</span>
-                  <span>missing_test</span>
-                  <span class="badge badge-low">low</span>
-                  <span>70% confidence</span>
-                </div>
-                <p class="anchored-finding-message">Boundary-value coverage is missing: add tests for min/max inputs, empty collections, and off-by-one conditions.</p>
-              </li>
-              <li>
-                <div class="anchored-finding-meta">
-                    <code>unanchored</code>
-                  <span>file-level</span>
-                  <span>suggested_test</span>
-                  <span class="badge badge-info">info</span>
-                  <span>40% confidence</span>
-                </div>
-                <p class="anchored-finding-message">Happy-path: call the primary function in `pr-comment.yml` with valid inputs and assert the expected return value.</p>
-              </li>
-              <li>
-                <div class="anchored-finding-meta">
-                    <code>unanchored</code>
-                  <span>file-level</span>
-                  <span>suggested_test</span>
-                  <span class="badge badge-info">info</span>
-                  <span>40% confidence</span>
-                </div>
-                <p class="anchored-finding-message">Invalid-input: pass None, an empty string, or an out-of-range value and assert a clear error is raised.</p>
-              </li>
-              <li>
-                <div class="anchored-finding-meta">
-                    <code>unanchored</code>
-                  <span>file-level</span>
-                  <span>suggested_test</span>
-                  <span class="badge badge-info">info</span>
-                  <span>40% confidence</span>
-                </div>
-                <p class="anchored-finding-message">Regression: add a test that pins any behavior this change is specifically intended to fix or improve.</p>
-              </li>
-              <li>
-                <div class="anchored-finding-meta">
-                    <code>unanchored</code>
-                  <span>file-level</span>
-                  <span>recommended_action</span>
-                  <span class="badge badge-info">info</span>
-                  <span>40% confidence</span>
-                </div>
-                <p class="anchored-finding-message">Address the possible bugs listed above before requesting a final review.</p>
-              </li>
-              <li>
-                <div class="anchored-finding-meta">
-                    <code>unanchored</code>
-                  <span>file-level</span>
-                  <span>recommended_action</span>
-                  <span class="badge badge-info">info</span>
-                  <span>40% confidence</span>
-                </div>
-                <p class="anchored-finding-message">Ensure all automated tests pass in CI before merging.</p>
-              </li>
-              <li>
-                <div class="anchored-finding-meta">
-                    <code>unanchored</code>
-                  <span>file-level</span>
-                  <span>recommended_action</span>
-                  <span class="badge badge-info">info</span>
-                  <span>40% confidence</span>
-                </div>
-                <p class="anchored-finding-message">Expand test coverage around the highest-risk code paths identified in this report.</p>
-              </li>
-          </ul>
+          <p class="empty">None reported.</p>
       </div>
     </section>
+
+    <!-- ── Rejected by grounding ── -->
 
   </main>
 </body>

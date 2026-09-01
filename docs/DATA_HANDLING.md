@@ -2,7 +2,7 @@
 
 ## Overview
 
-`ai-code-review-qa` runs in deterministic demo mode by default. OpenAI-powered review mode is opt-in and requires explicit environment configuration.
+`ai-code-review-qa` runs in deterministic static mode by default. OpenAI-powered review mode is opt-in and requires explicit environment configuration.
 
 ## No-Store Policy
 
@@ -14,7 +14,7 @@ The `reports/github/` directory is also gitignored and intended for dry-run GitH
 
 ## Network and Egress Boundary
 
-In demo mode, the review engine does not call OpenAI.
+In static mode, the review engine does not call OpenAI.
 
 The user-configured project test command may still do whatever that project does. This tool detects and runs supported test commands, but it does not control third-party test behavior, dependency behavior, or network access from the project under review.
 
@@ -26,6 +26,8 @@ In OpenAI mode, the changed-file list and git diff are sent to the OpenAI Respon
 
 API keys are loaded at runtime and must not be printed to logs, reports, fixtures, or other committed artifacts.
 
+Git ignore rules do not protect ad-hoc archives. Before sharing a ZIP or copying the project directory, explicitly exclude `.env`, virtual environments, generated reports, and other local credential files.
+
 Do not run private or proprietary repositories in OpenAI mode without authorization. Do not commit reports generated from private code.
 
 ## Report Artifact Safety
@@ -36,7 +38,7 @@ Structured findings may include code-derived messages, file paths, line numbers,
 
 Test output path sanitization maps the repository root to `<repo>` and normalizes path separators.
 
-The committed sample report should be demo-mode and credential-free.
+The committed sample report should be static-mode and credential-free.
 
 ## GitHub Review Payloads (Dry Run)
 
@@ -62,9 +64,9 @@ The no-store boundary still holds for this tool: it does not add a database, ser
 
 ## OpenAI Optional-Mode Boundary
 
-OpenAI mode is off by default. API, configuration, or schema-validation failures fall back to demo mode with a warning in the report summary.
+OpenAI mode is off by default. API, configuration, and schema-validation failures receive distinct `review_status` values, produce no substituted static findings or GitHub artifacts, and make the CLI return status `2` after saving the failure report.
 
-OpenAI output is validated with the Pydantic `ReviewResult` schema before report generation.
+OpenAI output is validated with the Pydantic `ReviewResult` schema before report generation. Structural validation does not establish semantic correctness.
 
 This project does not control OpenAI data retention, account settings, or organization policy.
 

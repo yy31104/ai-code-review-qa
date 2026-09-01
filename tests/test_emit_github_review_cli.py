@@ -30,7 +30,9 @@ def test_cli_emits_github_review_payload_without_network(tmp_path: Path) -> None
         cwd=repo,
     )
     (repo / "app.py").write_text(
-        "def issue_session(user):\n    authToken = create_token(user.password)\n    return user\n",
+        "def issue_session(user):\n"
+        "    subprocess.run(f\"grant {user}\", shell=True)\n"
+        "    return user\n",
         encoding="utf-8",
     )
 
@@ -40,7 +42,7 @@ def test_cli_emits_github_review_payload_without_network(tmp_path: Path) -> None
     inline_path = tmp_path / "reports" / "github" / "inline-review.json"
     fingerprints_path = tmp_path / "reports" / "github" / "finding-fingerprints.json"
     env = os.environ.copy()
-    env["AI_REVIEW_MODE"] = "demo"
+    env["AI_REVIEW_MODE"] = "static"
 
     completed = subprocess.run(
         [
@@ -95,6 +97,44 @@ def test_cli_emits_github_review_payload_without_network(tmp_path: Path) -> None
     assert "GitHub summary comment generated" in completed.stdout
     assert "GitHub inline review payload generated" in completed.stdout
     assert "Finding fingerprints generated" in completed.stdout
+
+
+def test_cli_returns_nonzero_and_persists_configuration_failure(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _run(["git", "init"], cwd=repo)
+    (repo / "app.py").write_text("VALUE = 1\n", encoding="utf-8")
+
+    output_path = tmp_path / "failed-report.html"
+    summary_path = tmp_path / "failed-summary.json"
+    env = os.environ.copy()
+    env["AI_REVIEW_MODE"] = "unsupported-provider"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "backend" / "app" / "main.py"),
+            "--repo",
+            str(repo),
+            "--output",
+            str(output_path),
+            "--emit-summary-comment",
+            str(summary_path),
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=120,
+    )
+
+    assert completed.returncode == 2
+    assert "Review status: configuration_error" in completed.stdout
+    assert "Review failed:" in completed.stderr
+    assert "is not publishable" in completed.stderr
+    assert output_path.exists()
+    assert not summary_path.exists()
+    assert "Review did not complete." in output_path.read_text(encoding="utf-8")
 
 
 def _run(command: list[str], *, cwd: Path) -> None:

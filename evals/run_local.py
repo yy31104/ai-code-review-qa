@@ -75,9 +75,9 @@ def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def predict(case: dict[str, Any]) -> ReviewResult:
-    """Run the public review path in deterministic demo mode for one eval case."""
+    """Run the public review path in deterministic static mode for one eval case."""
     previous_mode = os.environ.get("AI_REVIEW_MODE")
-    os.environ["AI_REVIEW_MODE"] = "demo"
+    os.environ["AI_REVIEW_MODE"] = "static"
     try:
         changed_files = [str(path) for path in case["changed_files"]]
         return review_diff(str(case["diff"]), changed_files)
@@ -90,6 +90,17 @@ def predict(case: dict[str, Any]) -> ReviewResult:
 
 def _run_checks(review: ReviewResult, expected: dict[str, Any]) -> list[CheckResult]:
     checks: list[CheckResult] = []
+
+    for field in ("review_mode", "review_status", "review_source"):
+        if field in expected:
+            actual = getattr(review, field)
+            checks.append(
+                CheckResult(
+                    name=field,
+                    passed=actual == expected[field],
+                    detail=f"expected {expected[field]!r}, got {actual!r}",
+                )
+            )
 
     if "risk_level" in expected:
         checks.append(
@@ -203,6 +214,37 @@ def _run_finding_checks(review: ReviewResult, expected: dict[str, Any]) -> list[
             )
         )
 
+    if "rule_ids" in expected:
+        # The exact multiset of rules the case must produce. Unlike a minimum
+        # count this fails on a missed detection and on an extra one, so a case
+        # measures precision and recall together.
+        expected_rules = sorted(str(rule) for rule in expected["rule_ids"])
+        actual_rules = sorted(
+            str(_finding_attr(finding, "rule_id"))
+            for finding in findings
+            if _finding_attr(finding, "rule_id")
+        )
+        checks.append(
+            CheckResult(
+                name="findings:rule_ids",
+                passed=actual_rules == expected_rules,
+                detail=f"expected {expected_rules}, got {actual_rules}",
+            )
+        )
+
+    if expected.get("require_evidence"):
+        anchored = [finding for finding in findings if _finding_attr(finding, "line") is not None]
+        missing = [
+            finding for finding in anchored if not str(_finding_attr(finding, "evidence") or "").strip()
+        ]
+        checks.append(
+            CheckResult(
+                name="findings:require_evidence",
+                passed=not missing and bool(anchored),
+                detail=f"{len(anchored)} anchored finding(s), {len(missing)} without evidence",
+            )
+        )
+
     if "file_anchored" in expected:
         expected_file_anchor = bool(expected["file_anchored"])
         actual_file_anchor = any(bool(_finding_attr(finding, "file")) for finding in findings)
@@ -233,19 +275,26 @@ def _run_finding_checks(review: ReviewResult, expected: dict[str, Any]) -> list[
         file = str(anchor.get("file", ""))
         line = int(anchor.get("line", 0))
         category = anchor.get("category")
+        rule_id = anchor.get("rule_id")
+        evidence = anchor.get("evidence")
         matching = [
             finding
             for finding in findings
             if _finding_attr(finding, "file") == file
             and _finding_attr(finding, "line") == line
             and (category is None or _finding_attr(finding, "category") == category)
+            and (rule_id is None or _finding_attr(finding, "rule_id") == rule_id)
+            and (
+                evidence is None
+                or str(evidence).strip() == str(_finding_attr(finding, "evidence") or "").strip()
+            )
         ]
+        label = rule_id or category or "any"
         checks.append(
             CheckResult(
-                name=f"findings:line_anchor:{file}:{line}",
+                name=f"findings:line_anchor:{file}:{line}:{label}",
                 passed=bool(matching),
-                detail=f"expected finding at {file}:{line}"
-                + (f" with category {category!r}" if category else ""),
+                detail=f"expected {label} finding at {file}:{line}",
             )
         )
 

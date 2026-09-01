@@ -29,7 +29,7 @@ def test_cli_generates_summary_for_pr_merge_base_range(tmp_path: Path) -> None:
     _git(repo, "checkout", "-b", "feature")
     (repo / "app.py").write_text(
         "def issue_session(user):\n"
-        "    authToken = create_token(user.password)\n"
+        "    subprocess.run(f\"grant {user}\", shell=True)\n"
         "    return user\n",
         encoding="utf-8",
     )
@@ -46,7 +46,7 @@ def test_cli_generates_summary_for_pr_merge_base_range(tmp_path: Path) -> None:
     report_path = tmp_path / "review_report.html"
     summary_path = tmp_path / "summary-comment.json"
     env = os.environ.copy()
-    env["AI_REVIEW_MODE"] = "demo"
+    env["AI_REVIEW_MODE"] = "static"
 
     completed = subprocess.run(
         [
@@ -80,6 +80,8 @@ def test_cli_generates_summary_for_pr_merge_base_range(tmp_path: Path) -> None:
     assert "Risk level: High" in body
     assert "app.py" in body
     assert "base_only.py" not in body
+    # The summary carries a real, line-anchored finding, not generic advice.
+    assert "shell=True" in body
 
 
 def _git(repo: Path, *args: str) -> None:

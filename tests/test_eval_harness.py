@@ -15,12 +15,12 @@ def test_seed_dataset_loads_and_passes() -> None:
     cases = load_cases(DEFAULT_DATASET)
     report = build_report(cases)
 
-    assert report["summary"]["total_cases"] == 25
+    assert report["summary"]["total_cases"] == len(cases)
     assert report["summary"]["failed_cases"] == 0
     assert report["summary"]["case_pass_rate"] == 1.0
 
 
-def test_predict_uses_demo_review_path_and_restores_mode(monkeypatch) -> None:
+def test_predict_uses_static_review_path_and_restores_mode(monkeypatch) -> None:
     case = {
         "id": "predict_seam",
         "changed_files": ["backend/app/example.py"],
@@ -46,7 +46,7 @@ def test_predict_uses_demo_review_path_and_restores_mode(monkeypatch) -> None:
     review = predict(case)
 
     assert seen == {
-        "mode": "demo",
+        "mode": "static",
         "diff": "+VALUE = 1",
         "changed_files": ["backend/app/example.py"],
     }

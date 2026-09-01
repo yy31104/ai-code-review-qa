@@ -2,7 +2,7 @@
 
 ## Scope
 
-`ai-code-review-qa` is a portfolio/MVP AI-assisted code-review CLI. The project is maintained on `main` on a best-effort basis and does not provide a commercial support SLA.
+`ai-code-review-qa` is an experimental AI-assisted code-review CLI. The project is maintained on `main` on a best-effort basis and does not provide a commercial support SLA.
 
 ## Supported Versions
 
@@ -26,13 +26,17 @@ Please include:
 
 ## Response Expectations
 
-Security reports are handled on a best-effort basis. The maintainer will try to acknowledge valid reports, assess impact, and ship fixes where practical, but this portfolio project does not provide a commercial SLA.
+Security reports are handled on a best-effort basis. The maintainer will try to acknowledge valid reports, assess impact, and ship fixes where practical, but the project does not provide a commercial SLA.
 
 ## Threat Model
 
 The tool is a local CLI that reads git diffs, runs detected test commands, and renders an HTML report. Diffs, PR or issue text, model output, and test output are untrusted input.
 
 The tool must never execute commands derived from model output. Automated test execution is limited to deterministic project-type detection in the local test runner, but the behavior of the tested project and its dependencies remains outside this repository's control.
+
+The test runner is for trusted checkouts only. A subprocess timeout is not a hostile-code sandbox and does not isolate the host filesystem, environment, network, processes, CPU, or memory.
+
+Provider configuration, request, and schema failures must remain explicit non-success states. They must not be relabeled as successful static reviews or contain substituted static findings.
 
 GitHub review payload generation treats diff-derived and model-derived text as untrusted Markdown. The payload builder escapes HTML-sensitive characters, Markdown link and emphasis controls, backticks, mentions, issue autolinks, code-fence breakout attempts, and leading block-level Markdown before placing finding text in comment bodies.
 

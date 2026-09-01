@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-# Importing the eval runner puts backend/app on sys.path, which makes the demo
+# Importing the eval runner puts backend/app on sys.path, which makes the static
 # review engine importable by module name (mirrors tests/test_eval_harness.py).
 import evals.run_local  # noqa: F401
 from llm_reviewer import _estimate_risk, _risk_tokens
