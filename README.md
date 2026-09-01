@@ -111,11 +111,11 @@ python evals/real_diffs.py score \
 
 `score` reports precision with a 95% Wilson interval, split by whether the finding claims something about a line or about the change set, and broken down per rule. The interval is there because these samples are small: 80% over ten judged findings is not the claim that 80% over five hundred would be.
 
-Verdicts are never generated. A precision number is worth exactly what the person who adjudicated it is worth, so the tool leaves `verdict` empty and the labels are hand-entered using the fixed criteria in [`evals/LABELING_GUIDE.md`](evals/LABELING_GUIDE.md). The manifest hashes the dataset, current reviewer source (including uncommitted code), harness, and immutable finding content so mismatched run artifacts fail instead of producing a plausible number.
+The tool never generates verdicts. A publishable precision number is worth exactly what the person who adjudicated it is worth, so `review` leaves `verdict` empty and the labeling criteria live in [`evals/LABELING_GUIDE.md`](evals/LABELING_GUIDE.md). The manifest hashes the dataset, current reviewer source (including uncommitted code), harness, and immutable finding content so mismatched run artifacts fail instead of producing a plausible number.
 
 ### What the first run found
 
-A 120-commit development corpus from `flask`, `httpx` and `requests` was reviewed and every finding was adjudicated by hand against the linked commit. The verdicts are committed in `evals/data/real_diffs/verdicts_dev_pass*.jsonl`.
+A 120-commit development corpus from `flask`, `httpx` and `requests` was reviewed. The committed `evals/data/real_diffs/verdicts_dev_pass*.jsonl` files are model-assisted preliminary triage produced at the maintainer's request, not human ground truth; their annotator provenance is not encoded in the artifacts, and their numbers require human verification before publication.
 
 | Pass | Findings | Precision | Change made after it |
 | --- | --- | --- | --- |
@@ -133,6 +133,8 @@ Two things the numbers make concrete for the next step:
 
 - At 0.008 findings per commit, reaching thirty judged findings needs roughly 3,600 commits. A held-out corpus has to be far larger than 120, or drawn from code that is reviewed less rigorously than these three libraries.
 - 99% of commits were reviewed silently. That is a statement about output volume and nothing else. Measuring what the reviewer *misses* requires adjudicating a sample of those silent commits, which has not been done.
+
+`recall-probe` creates that deterministic silent-commit sample without filling any labels, and `recall-score` reports the human-recorded miss rate and rule-scope breakdown. Despite the command name, this is a miss audit rather than classical `TP / (TP + FN)` recall. See [`evals/RECALL_LABELING_GUIDE.md`](evals/RECALL_LABELING_GUIDE.md).
 
 ## What the repository verifies
 

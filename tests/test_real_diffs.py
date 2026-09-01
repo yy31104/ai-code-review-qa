@@ -11,14 +11,23 @@ import pytest
 import evals.run_local  # noqa: F401
 import evals.real_diffs as real_diffs
 from evals.real_diffs import (
+    OUT_OF_SCOPE,
+    SCOPE_UNSURE,
+    _canonical_sha256,
     _finding_set_sha256,
     _identity,
     _merge_adjudications,
+    _merge_probe_adjudications,
+    _probe_artifact_sha256,
     _validate_artifacts,
+    _validate_dataset_manifest,
+    _validate_probe_bundle,
+    build_recall_probe,
     harvest,
     read_jsonl,
     review_cases,
     score,
+    score_recall_probe,
     wilson_interval,
     write_jsonl,
 )
@@ -52,6 +61,62 @@ def corpus(tmp_path: Path) -> Path:
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "docs only")
     return repo
+
+
+def recall_inputs(
+    tmp_path: Path, total: int = 6, finding_case_indexes: set[int] | None = None
+) -> tuple[Path, list[dict[str, object]], dict[str, object]]:
+    finding_case_indexes = finding_case_indexes or {0}
+    cases: list[dict[str, object]] = []
+    case_rows: list[dict[str, object]] = []
+    for index in range(total):
+        case_id = f"repo@{index:012d}"
+        path = f"svc_{index}.py"
+        cases.append(
+            {
+                "id": case_id,
+                "repo": "https://github.com/example/repo.git",
+                "commit_sha": f"{index:040d}",
+                "commit_url": f"https://github.com/example/repo/commit/{index:040d}",
+                "author": "Test User",
+                "date": "2026-09-01T00:00:00Z",
+                "subject": f"change {index}",
+                "changed_files": [path],
+                "diff": (
+                    f"diff --git a/{path} b/{path}\n"
+                    "new file mode 100644\n"
+                    "--- /dev/null\n"
+                    f"+++ b/{path}\n"
+                    "@@ -0,0 +1 @@\n"
+                    f"+value = {index}\n"
+                ),
+            }
+        )
+        case_rows.append(
+            {
+                "case_id": case_id,
+                "commit_url": f"https://github.com/example/repo/commit/{index:040d}",
+                "subject": f"change {index}",
+                "changed_files": [path],
+                "diff_chars": 100,
+                "review_status": "demo",
+                "review_source": "demo_rules",
+                "risk_level": "Low",
+                "findings": 1 if index in finding_case_indexes else 0,
+                "rejected_findings": 0,
+                "latency_ms": 0.1,
+            }
+        )
+
+    dataset = write_jsonl(cases, tmp_path / "corpus.jsonl")
+    identity = _identity(dataset, cases).to_dict()
+    finding_count = sum(int(case["findings"]) for case in case_rows)
+    manifest: dict[str, object] = {
+        "identity": identity,
+        "findings_artifact": {"count": finding_count, "sha256": "test-only"},
+        "cases": case_rows,
+    }
+    return dataset, cases, manifest
 
 
 def test_harvest_keeps_only_commits_touching_the_suffix(corpus: Path) -> None:
@@ -205,6 +270,229 @@ def test_review_rerun_refuses_to_drop_an_old_label() -> None:
 
     with pytest.raises(ValueError, match="would discard adjudication"):
         _merge_adjudications(fresh, existing)
+
+
+def test_recall_probe_is_deterministic_and_only_samples_silent_cases(tmp_path: Path) -> None:
+    dataset, cases, manifest = recall_inputs(tmp_path)
+    _validate_dataset_manifest(dataset, cases, manifest)
+
+    first_header, first_rows = build_recall_probe(cases, manifest, count=3, seed=20260901)
+    second_header, second_rows = build_recall_probe(cases, manifest, count=3, seed=20260901)
+
+    assert [row["case_id"] for row in first_rows] == [row["case_id"] for row in second_rows]
+    assert all(row["case_id"] != "repo@000000000000" for row in first_rows)
+    assert first_header["seed"] == 20260901
+    assert first_header["eligible_count"] == 5
+    assert first_header["rule_ids"] == list(real_diffs.RULE_IDS)
+    assert set(first_header["rule_scopes"]) == set(real_diffs.RULE_IDS)
+    assert first_header == second_header
+
+
+def test_recall_probe_rejects_a_sample_larger_than_the_silent_population(
+    tmp_path: Path,
+) -> None:
+    _, cases, manifest = recall_inputs(tmp_path, total=3)
+
+    with pytest.raises(ValueError, match="only 2 silent"):
+        build_recall_probe(cases, manifest, count=3, seed=1)
+
+
+def test_recall_probe_rejects_dataset_manifest_mismatch(tmp_path: Path) -> None:
+    dataset, cases, manifest = recall_inputs(tmp_path)
+    manifest["identity"]["dataset_sha256"] = "wrong"  # type: ignore[index]
+
+    with pytest.raises(ValueError, match="dataset hash"):
+        _validate_dataset_manifest(dataset, cases, manifest)
+
+
+def test_recall_probe_rejects_failed_static_cases(tmp_path: Path) -> None:
+    dataset, cases, manifest = recall_inputs(tmp_path)
+    manifest["cases"][1]["review_status"] = "configuration_error"  # type: ignore[index]
+    manifest["cases"][1]["review_source"] = "none"  # type: ignore[index]
+
+    with pytest.raises(ValueError, match="non-successful case"):
+        _validate_dataset_manifest(dataset, cases, manifest)
+
+
+def test_recall_probe_artifact_allows_labels_but_not_diff_changes(tmp_path: Path) -> None:
+    _, cases, manifest = recall_inputs(tmp_path)
+    _, rows = build_recall_probe(cases, manifest, count=2, seed=7)
+    labelled = [{**rows[0], "verdict": "clean", "note": "reviewed"}, rows[1]]
+    changed = [{**rows[0], "diff": str(rows[0]["diff"]) + "\n"}, rows[1]]
+
+    assert _probe_artifact_sha256(rows) == _probe_artifact_sha256(labelled)
+    assert _probe_artifact_sha256(rows) != _probe_artifact_sha256(changed)
+
+
+def test_recall_probe_rerun_preserves_labels_and_refuses_to_drop_them(
+    tmp_path: Path,
+) -> None:
+    _, cases, manifest = recall_inputs(tmp_path)
+    _, rows = build_recall_probe(cases, manifest, count=2, seed=7)
+    existing = [dict(row) for row in rows]
+    existing[0]["verdict"] = "clean"
+    existing[0]["note"] = "checked"
+
+    merged = _merge_probe_adjudications(rows, existing)
+
+    assert merged[0]["verdict"] == "clean"
+    assert merged[0]["note"] == "checked"
+    with pytest.raises(ValueError, match="would discard adjudication"):
+        _merge_probe_adjudications(rows[1:], existing)
+
+
+def test_recall_score_rejects_the_wrong_source_manifest(tmp_path: Path) -> None:
+    _, cases, manifest = recall_inputs(tmp_path)
+    header, rows = build_recall_probe(cases, manifest, count=2, seed=7)
+    _validate_probe_bundle(header, rows, manifest)
+    wrong_manifest = json.loads(json.dumps(manifest))
+    wrong_manifest["identity"]["prompt_version"] = "different"
+
+    with pytest.raises(ValueError, match="source manifest"):
+        _validate_probe_bundle(header, rows, wrong_manifest)
+
+
+def test_recall_score_rejects_a_probe_from_another_harness(tmp_path: Path) -> None:
+    _, cases, manifest = recall_inputs(tmp_path)
+    header, rows = build_recall_probe(cases, manifest, count=2, seed=7)
+    header["probe_harness_sha256"] = "different"
+
+    with pytest.raises(ValueError, match="different scoring harness"):
+        _validate_probe_bundle(header, rows, manifest)
+
+
+def test_recall_score_reports_miss_rate_categories_and_rule_scope(tmp_path: Path) -> None:
+    _, cases, manifest = recall_inputs(tmp_path)
+    header, rows = build_recall_probe(cases, manifest, count=3, seed=9)
+    rows[0]["verdict"] = "clean"
+    rows[1]["verdict"] = "missed_defect"
+    rows[1]["missed"] = [
+        {
+            "file": rows[1]["changed_files"][0],
+            "line": 1,
+            "category": "correctness",
+            "description": "The new value violates the caller's invariant.",
+            "rule_scope": header["rule_ids"][0],
+        }
+    ]
+    rows[2]["verdict"] = "missed_defect"
+    rows[2]["missed"] = [
+        {
+            "file": rows[2]["changed_files"][0],
+            "line": 1,
+            "category": "reliability",
+            "description": "The new path has no retry boundary.",
+            "rule_scope": OUT_OF_SCOPE,
+        },
+        {
+            "file": rows[2]["changed_files"][0],
+            "line": 1,
+            "category": "correctness",
+            "description": "The intended range is unclear from this diff.",
+            "rule_scope": SCOPE_UNSURE,
+        },
+    ]
+
+    _validate_probe_bundle(header, rows, manifest)
+    report = score_recall_probe(rows, header["rule_ids"])
+
+    assert report["adjudication"] == {"judged": 3, "unsure": 0, "unjudged": 0}
+    assert report["silent_commit_miss_rate"]["value"] == pytest.approx(2 / 3, abs=0.0001)
+    assert report["missed_defects"] == {
+        "total": 3,
+        "by_category": {"correctness": 2, "reliability": 1},
+    }
+    assert report["static_rule_scope"]["in_scope_share"] == 0.5
+    assert report["static_rule_scope"]["unsure"] == 1
+
+
+def test_recall_score_does_not_treat_an_unjudged_empty_list_as_clean(
+    tmp_path: Path,
+) -> None:
+    _, cases, manifest = recall_inputs(tmp_path)
+    header, rows = build_recall_probe(cases, manifest, count=1, seed=3)
+
+    report = score_recall_probe(rows, header["rule_ids"])
+
+    assert report["adjudication"] == {"judged": 0, "unsure": 0, "unjudged": 1}
+    assert report["silent_commit_miss_rate"]["value"] is None
+
+
+def test_recall_score_requires_an_explanation_for_unsure(tmp_path: Path) -> None:
+    _, cases, manifest = recall_inputs(tmp_path)
+    header, rows = build_recall_probe(cases, manifest, count=1, seed=3)
+    rows[0]["verdict"] = "unsure"
+
+    with pytest.raises(ValueError, match="must explain why"):
+        score_recall_probe(rows, header["rule_ids"])
+
+
+@pytest.mark.parametrize(
+    ("verdict", "missed", "message"),
+    [
+        ("clean", [{"anything": "present"}], "clean but contains"),
+        ("missed_defect", [], "missed_defect but its missed list is empty"),
+        ("typo", [], "Invalid recall verdict"),
+    ],
+)
+def test_recall_score_rejects_inconsistent_case_labels(
+    tmp_path: Path,
+    verdict: str,
+    missed: list[dict[str, object]],
+    message: str,
+) -> None:
+    _, cases, manifest = recall_inputs(tmp_path)
+    header, rows = build_recall_probe(cases, manifest, count=1, seed=3)
+    rows[0]["verdict"] = verdict
+    rows[0]["missed"] = missed
+
+    with pytest.raises(ValueError, match=message):
+        score_recall_probe(rows, header["rule_ids"])
+
+
+def test_recall_score_rejects_unknown_scope_and_non_added_lines(tmp_path: Path) -> None:
+    _, cases, manifest = recall_inputs(tmp_path)
+    header, rows = build_recall_probe(cases, manifest, count=1, seed=3)
+    rows[0]["verdict"] = "missed_defect"
+    miss = {
+        "file": rows[0]["changed_files"][0],
+        "line": 1,
+        "category": "correctness",
+        "description": "A concrete missed defect.",
+        "rule_scope": "not_a_recorded_rule",
+    }
+    rows[0]["missed"] = [miss]
+
+    with pytest.raises(ValueError, match="rule_scope"):
+        score_recall_probe(rows, header["rule_ids"])
+
+    miss["rule_scope"] = OUT_OF_SCOPE
+    miss["line"] = 99
+    with pytest.raises(ValueError, match="line this diff added"):
+        score_recall_probe(rows, header["rule_ids"])
+
+
+def test_cli_exposes_recall_probe_and_recall_score() -> None:
+    probe = real_diffs.parse_args(
+        [
+            "recall-probe",
+            "--dataset",
+            "corpus.jsonl",
+            "--manifest",
+            "manifest.json",
+            "--seed",
+            "7",
+            "--out",
+            "probe.jsonl",
+        ]
+    )
+    recall_score = real_diffs.parse_args(
+        ["recall-score", "--probe", "probe.jsonl", "--manifest", "manifest.json"]
+    )
+
+    assert probe.command == "recall-probe"
+    assert probe.count == 30
+    assert recall_score.command == "recall-score"
 
 
 def test_invalid_jsonl_names_the_offending_line(tmp_path: Path) -> None:

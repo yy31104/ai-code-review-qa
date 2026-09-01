@@ -100,6 +100,17 @@ AI_REVIEW_MODE=demo python evals/real_diffs.py review \
 python evals/real_diffs.py score \
   --findings evals/data/real_diffs/dev_findings.jsonl \
   --manifest evals/data/real_diffs/dev_manifest.json
+
+python evals/real_diffs.py recall-probe \
+  --dataset evals/data/real_diffs/dev_corpus.jsonl \
+  --manifest evals/data/real_diffs/dev_manifest.json \
+  --count 30 --seed 20260901 \
+  --out evals/data/real_diffs/recall_probe_dev.jsonl
+
+python evals/real_diffs.py recall-score \
+  --probe evals/data/real_diffs/recall_probe_dev.jsonl \
+  --manifest evals/data/real_diffs/dev_manifest.json \
+  --out reports/evals/recall_dev.json
 ```
 
 `harvest` keeps commits that touch the requested suffix, skips merges, and caps diff size. Each case records the commit SHA, author, date, subject and a browsable URL, so any finding can be traced back to real code.
@@ -107,6 +118,10 @@ python evals/real_diffs.py score \
 `review` writes one row per finding with the rule, the anchor, the evidence, and surrounding source, plus an empty `verdict`. It also writes a manifest recording the dataset hash, case count, review mode/model, prompt version, Git revision, reviewer-source hash, harness hash and timestamp. The source hash covers uncommitted reviewer code, which a Git revision alone does not identify. The manifest also binds the immutable finding content, so `score` rejects a findings file from another run while still allowing edits to `verdict` and `note`.
 
 `score` reads the verdicts back and reports precision with a 95% Wilson interval, split by anchor granularity and per rule. Rows left unjudged are excluded rather than assumed correct; unknown verdict spellings fail instead of disappearing from the counts. Re-running `review` preserves matching labels by content-addressed finding id and refuses to discard a label that no longer matches.
+
+`recall-probe` samples only successful static-review cases with zero emitted findings. Its first row binds the dataset, source manifest, reviewer source, seed, eligible population, exact rule inventory and scope definitions, scoring-harness hash, and immutable probe content. Every case starts with an empty verdict and empty `missed` list; the tool never invents a miss. `recall-score` rejects a wrong manifest, changed harness, changed diff, changed sample, invalid added-line anchor, or inconsistent label before reporting the silent-commit miss rate and descriptive rule-scope breakdown.
+
+Read [`RECALL_LABELING_GUIDE.md`](RECALL_LABELING_GUIDE.md) before entering probe labels. An empty `missed` list is not clean until the case verdict is explicitly set to `clean`.
 
 Read [`LABELING_GUIDE.md`](LABELING_GUIDE.md) before entering verdicts. It fixes the meaning of an actionable true positive, separates line-level and file-level claims, and prevents the standard from changing after the findings are visible.
 
@@ -117,5 +132,7 @@ Read [`LABELING_GUIDE.md`](LABELING_GUIDE.md) before entering verdicts. It fixes
 - **Report the interval, not just the point.** Twenty judged findings support a range, not a figure.
 - **Keep line-level and file-level claims apart.** They are different assertions and a combined average answers neither.
 - **Do not call silence recall.** A commit with no emitted finding may be clean or may contain a missed defect. This workflow measures the precision/noise of emitted findings; recall requires labels for silent cases too.
+
+The committed `verdicts_dev_pass*.jsonl` files predate that rule and contain model-assisted preliminary triage requested by the maintainer. They are development artifacts, carry no machine-readable annotator provenance, and must not support a published metric until a person verifies them.
 
 Harvested corpora are gitignored: the diffs belong to their upstream projects and are regenerated from the commands above. Verdict files are keyed by commit SHA and are the part worth committing.

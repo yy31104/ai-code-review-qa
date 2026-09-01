@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-09-01
-- Applies to: `recovery/trustworthy-review-core` (3 commits ahead of `origin/main` at `406f583`)
+- Applies to: `recovery/trustworthy-review-core` (4 commits ahead of `origin/main` at `406f583` when accepted)
 - Supersedes: the portfolio framing in the pre-recovery README
 
 ## Correction to the brief this decision was requested under
@@ -24,7 +24,7 @@ suite graded that prose. Both are now replaced. The measured state is:
 | --- | --- | --- |
 | Deterministic rules | 11 lexical rules over added lines | `backend/app/static_review.py` |
 | Synthetic regression | 42 cases, 109 checks | `evals/run_local.py` |
-| Real-diff precision, pass 1 | 19% (3/16, 95% CI 7–43%) | hand adjudication, `verdicts_dev_pass1.jsonl` |
+| Real-diff provisional precision, pass 1 | 19% (3/16, 95% CI 7–43%) | model-assisted triage, `verdicts_dev_pass1.jsonl` |
 | Real-diff precision, pass 3 | 1/1 — not a sample | `verdicts_dev_pass3.jsonl` |
 | Emission rate | 0.008 findings per commit | 1 finding over 120 commits |
 | Recall | unmeasured | no silent commit has been adjudicated |
@@ -79,12 +79,14 @@ and a documented non-zero exit code. That behavior exists and is tested; it must
 ### 5. Finding schema and grounding contract
 
 A finding carries file, line, category, severity, confidence, rule id or model provenance, the
-message, and evidence. Grounding checks three things against the current diff: the file is in it,
-the line is one the diff added, and the quoted evidence matches that line's text. Rejections
-record a reason and are counted separately from model judgment.
+message, and evidence. For a line-anchored finding, grounding checks three things against the
+current diff: the file is in it, the line is one the diff added, and the quoted evidence matches
+that line's text. A file-level finding proves only that the file is in the diff; a summary-level
+finding has no location to ground. Rejections record a reason and are counted separately from
+model judgment.
 
-Grounding proves provenance, not correctness. A grounded finding can still be wrong; pass 1
-measured that at 81%.
+Grounding proves provenance, not correctness. A grounded finding can still be wrong; the
+provisional pass-1 triage marked 81% false, but that figure is not publishable human ground truth.
 
 ### 6. Evaluation contract
 
@@ -93,9 +95,10 @@ spent), `heldout/` (frozen, never inspected before reporting). Every benchmark r
 hash, code revision, reviewer type, model, prompt version, config, raw output, grounding
 decisions, human labels, tokens, cost, latency.
 
-Verdicts are entered by hand. The three committed verdict files were produced by a model at the
-maintainer's explicit instruction and are labelled as first-pass triage; they require spot-checking
-before any of them backs a published number.
+Publishable verdicts are entered by a person. The three committed verdict files were produced by
+a model at the maintainer's explicit instruction and are only first-pass triage; the artifacts do
+not record annotator provenance, so they require human verification before any of them backs a
+published number.
 
 ### 7. Untrusted-repository execution boundary
 
@@ -177,13 +180,22 @@ Build the recall probe (PR-3 tooling only, no adjudication):
 
 Add `evals/real_diffs.py recall-probe`. Given a harvested corpus and a manifest, sample N commits
 the reviewer reported nothing on, using a seed recorded in the output. For each, emit a row with
-the commit URL, subject, changed files, the full diff, an empty `missed` list and an empty `note`.
-A person fills in each missed defect with its file, line, category and a one-line description.
+the commit URL, subject, changed files, the full diff, an empty verdict, an empty `missed` list and
+an empty `note`. A person marks the case `clean`, `missed_defect` or `unsure`. Each missed defect
+records its file, added line, category, one-line description, and `rule_scope`: the exact recorded
+rule id, `out_of_scope`, or `unsure`. These extra fields distinguish unreviewed cases from reviewed
+clean cases and make the scope share computable.
 
 Add `evals/real_diffs.py recall-score`, which reads those rows back and reports: commits sampled,
 commits with at least one missed defect, total missed defects by category, and the share of missed
 defects that fall inside the 11 rules' stated scope — the last being the number that decides
 whether the rules are worth extending.
+
+This is a silent-commit miss audit, not classical `TP / (TP + FN)` recall: it samples only commits
+where the reviewer emitted nothing and does not fully label the emitted-finding population.
+
+The tooling can be implemented before PR-2, but the development sample must be regenerated and
+only then adjudicated after `todo_marker` is removed and the static rule inventory is final.
 
 Reuse the existing manifest binding, content-addressed ids, verdict validation and label-preserving
 rerun. Do not generate `missed` entries. Do not change any rule. Tests must cover sampling
