@@ -12,6 +12,8 @@ on:
 jobs:
   build:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    outputs:
+      publishable: ${{ steps.review.outputs.publishable }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -48,11 +50,13 @@ jobs:
           python -m pip install -r backend/requirements.txt
 
       - name: Build PR summary artifact
+        id: review
         env:
           AI_REVIEW_MODE: static
           MERGE_BASE: ${{ steps.range.outputs.merge_base }}
           HEAD_SHA: ${{ steps.range.outputs.head_sha }}
         run: |
+          set -o pipefail
           python backend/app/main.py \
             --repo . \
             --base "$MERGE_BASE" \
@@ -61,7 +65,18 @@ jobs:
             --output backend/reports/review_report.html \
             --emit-summary-comment reports/github/summary-comment.json \
             --emit-inline-review reports/github/inline-review.json \
-            --emit-finding-fingerprints reports/github/finding-fingerprints.json
+            --emit-finding-fingerprints reports/github/finding-fingerprints.json \
+            | tee "$RUNNER_TEMP/review-output.log"
+
+          if grep -Eq '^Review status: (no_changes|abstained) ' "$RUNNER_TEMP/review-output.log"; then
+            echo "publishable=false" >> "$GITHUB_OUTPUT"
+          else
+            grep -q '^Review status: completed ' "$RUNNER_TEMP/review-output.log"
+            test -s reports/github/summary-comment.json
+            test -s reports/github/inline-review.json
+            test -s reports/github/finding-fingerprints.json
+            echo "publishable=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Upload PR summary artifacts
         uses: actions/upload-artifact@v6
@@ -76,7 +91,7 @@ jobs:
 
   post:
     needs: build
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && vars.AI_REVIEW_SUMMARY_AUTOPOST == 'true' }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.build.outputs.publishable == 'true' && vars.AI_REVIEW_SUMMARY_AUTOPOST == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -138,7 +153,7 @@ jobs:
     needs:
       - build
       - post
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && vars.AI_REVIEW_SUMMARY_AUTOPOST == 'true' && vars.AI_REVIEW_INLINE_COMMENTS == 'true' }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && needs.build.outputs.publishable == 'true' && vars.AI_REVIEW_SUMMARY_AUTOPOST == 'true' && vars.AI_REVIEW_INLINE_COMMENTS == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -289,7 +304,7 @@ jobs:
     needs:
       - build
       - post-inline
-    if: ${{ always() && github.event.pull_request.head.repo.full_name == github.repository && needs.build.result == 'success' && vars.AI_REVIEW_STALE_ACTION == 'true' }}
+    if: ${{ always() && github.event.pull_request.head.repo.full_name == github.repository && needs.build.result == 'success' && needs.build.outputs.publishable == 'true' && vars.AI_REVIEW_STALE_ACTION == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
