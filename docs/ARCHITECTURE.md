@@ -4,7 +4,7 @@ This document explains what each part of the review pipeline owns, which guarant
 
 ## Scope
 
-The current product slice is a human-in-the-loop review of a bounded Python/backend diff. The pipeline may propose findings and prepare GitHub artifacts. It does not decide that code is safe to merge, and model output never authorizes a repository write by itself.
+The CLI reviews a bounded Python/backend diff with a developer inspecting the results. The pipeline may propose findings and prepare GitHub artifacts. It does not decide that code is safe to merge, and model output never authorizes a repository write by itself.
 
 ## Main path
 
@@ -66,7 +66,7 @@ Every `LogicalLine` carries two views of its text for this reason: `code` is the
 
 Boundary: these rules are lexical. There is no import resolution, type information, or data flow. A match is a shape that is usually a defect. Nothing here establishes that a line is wrong.
 
-A 120-commit development corpus from three public Python projects informed attribution, evidence anchoring, and the removal of `new_function_without_test`. Its preliminary labels were model-assisted and still require human verification; the results and provenance are in [development notes](../devlog/REAL_DIFF_NOTES.md). `evals/real_diffs.py` owns the measurement loop, with labeling criteria in `evals/LABELING_GUIDE.md`.
+A 120-commit development corpus from three public Python projects informed attribution, evidence anchoring, and the removal of `new_function_without_test`. Its preliminary labels were model-assisted and still require human verification. `evals/real_diffs.py` owns the measurement loop, with labeling criteria in `evals/LABELING_GUIDE.md`.
 
 ### Review generation — `llm_reviewer.py`
 

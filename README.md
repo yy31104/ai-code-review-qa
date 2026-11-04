@@ -45,7 +45,6 @@ Static rules compare added constructs with removed code in the same change block
 | `tests/` | Pipeline and GitHub adapter behavior | [test_static_review.py](tests/test_static_review.py) |
 | `evals/` | Synthetic cases and real-diff measurement tools | [Guide](evals/README.md) |
 | `docs/` | Architecture, commands, and data handling | [Reference](docs/REFERENCE.md) |
-| `devlog/` | Development records | [Index](devlog/README.md) |
 
 ## Run locally
 
@@ -104,7 +103,7 @@ GitHub writes use opt-in workflow gates. Report generation and comment payload c
 ## Limits
 
 - Rules cover Python patterns with lexical matching. Cross-file moves and same-block attribution can cause false positives or missed findings; grounding checks references, and a person judges correctness.
-- Real-diff precision, recall, and provider quality remain unmeasured on a held-out human-labeled dataset. Confidence values are heuristic; development-pass results are in [devlog](devlog/REAL_DIFF_NOTES.md).
+- Real-diff precision, recall, and provider quality remain unmeasured on a held-out human-labeled dataset. Confidence values are heuristic.
 - Run against trusted checkouts: the CLI executes their detected tests on the host. Provider mode sends filenames and a character-limited diff to OpenAI; see [data handling](docs/DATA_HANDLING.md).
 
 ## Docs

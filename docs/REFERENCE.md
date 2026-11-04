@@ -73,8 +73,6 @@ The tool never generates verdicts. A publishable precision number is worth exact
 
 `recall-probe` samples completed silent commits with empty case-level `adjudication` labels. A person records missed defects; `recall-score` reports the resulting miss audit. See the [silent-case labeling guide](../evals/RECALL_LABELING_GUIDE.md).
 
-Development-pass results and their provenance are recorded in [development notes](../devlog/REAL_DIFF_NOTES.md).
-
 ## What the repository verifies
 
 | Verified by tests or deterministic evals | Not verified yet |
