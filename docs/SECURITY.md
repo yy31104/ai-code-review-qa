@@ -58,4 +58,4 @@ Any future stale-comment action must be separately gated, must remain marker-own
 - pre-compromised hosts or developer machines
 - vulnerabilities in OpenAI infrastructure, APIs, or account configuration
 
-For data and artifact boundaries, see [docs/DATA_HANDLING.md](docs/DATA_HANDLING.md).
+For data and artifact boundaries, see [DATA_HANDLING.md](DATA_HANDLING.md).

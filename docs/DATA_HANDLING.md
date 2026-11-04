@@ -38,7 +38,7 @@ Structured findings may include code-derived messages, file paths, line numbers,
 
 Test output path sanitization maps the repository root to `<repo>` and normalizes path separators.
 
-The committed sample report should be static-mode and credential-free.
+The README screenshot is captured from a credential-free static-mode run.
 
 ## GitHub Review Payloads (Dry Run)
 

@@ -1,13 +1,6 @@
-"""Check that a proposed finding actually refers to the diff under review.
+"""Check finding file, line, and quoted evidence against a parsed diff.
 
-Grounding answers one narrow question: does this finding point at a line that
-this diff added, and does the evidence it quotes match what that line says? A
-finding that passes is *attributable*, not correct. Semantic correctness is
-still a human judgment, and nothing here changes that.
-
-Rejection is deliberately silent-free: every rejected finding is kept with a
-reason so a run can be audited, and pipeline rejection stays distinguishable
-from model judgment when the two are measured separately.
+Rejected findings retain a reason for inspection in the report.
 """
 
 from __future__ import annotations
@@ -41,7 +34,6 @@ def check_finding(finding: Finding, diff_index: DiffIndex) -> str | None:
         return BINARY_FILE
 
     if finding.line is None:
-        # File-level finding: the file is in the diff, so it is attributable.
         return None
     if finding.line not in diff_file.right_lines:
         return LINE_NOT_ADDED if diff_file.right_lines else MISSING_LINE_ANCHOR

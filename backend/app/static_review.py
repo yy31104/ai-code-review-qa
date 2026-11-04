@@ -1,20 +1,7 @@
-"""Deterministic review rules that read the added lines of a unified diff.
+"""Lexical Python rules over added statements in a unified diff.
 
-Every rule here inspects real source text and anchors its result to the exact
-added line it matched, together with that line as evidence. No rule calls a
-model, so the output is reproducible and can be used as the baseline that model
-output is compared against.
-
-Scope and limits, stated up front because they bound what a match means:
-
-- Only right-side lines are inspected. Unchanged context lines are read for
-  context but never reported; deleted lines are ignored entirely.
-- Matching is lexical. There is no import resolution, type information, or
-  cross-function data flow, so a match means "this shape is usually a defect",
-  not "this line is proven wrong". Severity and confidence say how strongly.
-- Continuation lines are joined into one logical line while brackets are open,
-  so a call split across lines is matched as a whole. Triple-quoted strings
-  spanning lines are not tracked.
+Matches carry added-line evidence. Removed constructs in the same change block
+are compared to avoid reporting patterns that the edit already contained.
 """
 
 from __future__ import annotations

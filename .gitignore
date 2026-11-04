@@ -17,3 +17,10 @@ reports/github/
 evals/data/real_diffs/*.jsonl
 evals/data/real_diffs/*.json
 !evals/data/real_diffs/verdicts*.jsonl
+
+# Local CLI output and interpreter caches.
+backend/reports/
+reports/*.html
+reports/*.json
+*.pyo
+*.egg-info/

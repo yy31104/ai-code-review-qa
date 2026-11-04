@@ -20,7 +20,7 @@ git diff --check
 - `reports/evals/` not committed
 - GitHub Actions permissions stay minimal
 - branch protection checks enabled
-- `LICENSE` and `SECURITY.md` present
+- `LICENSE` and `docs/SECURITY.md` present
 - Markdown escaping tests pass
 - report displays review mode, status, and finding source
 - provider failure contains no static findings and returns status `2`

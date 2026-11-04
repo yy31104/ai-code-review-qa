@@ -1,28 +1,28 @@
-@AGENTS.md
+# Contributing
 
-# Claude Code Instructions
+Use Git and Python 3.11+.
 
-## Claude role
+Install in a virtual environment:
+```bash
+python -m pip install -r backend/requirements.txt
+```
+Run the CLI against a trusted checkout:
+```bash
+AI_REVIEW_MODE=static python backend/app/main.py --repo . --base HEAD~1 --head HEAD --output reports/review.html
+```
+Check changes:
+```bash
+python -m pytest -q
+python evals/run_local.py --out reports/evals/results.json
+python evals/render_report.py --in reports/evals/results.json --md reports/evals/summary.md --html reports/evals/summary.html
+git diff --check
+```
 
-Act as the senior architect and release reviewer for this repository. Keep the bounded review pipeline reproducible, measurable, secure, and straightforward to explain from the code.
-
-## Default workflow
-
-1. Read `AGENTS.md` first.
-2. Restate the task as a small PR-sized plan.
-3. Identify affected modules and likely risks before editing.
-4. Prefer the smallest safe change that improves testability or reliability.
-5. Run or clearly request the relevant checks before declaring the task complete.
-6. End with: changed files, commands run, test/eval result, risks, and next PR.
-
-## Claude-specific duties
-
-- Guard architecture boundaries: diff reader, test runner, review engine, schema, reporter, and eval harness should stay separable.
-- For review-output changes, check whether `evals/data/golden_cases.jsonl` needs new cases.
-- For workflow changes, verify GitHub Actions permissions stay minimal.
-- For prompt/model changes, check explicit provider failure behavior and schema validation.
-- For public documentation, separate deterministic pipeline evidence from provider review quality.
-
-## Stop conditions
-
-Pause and ask for confirmation before any destructive git action, secret handling, production deployment, paid API usage, or direct change to the default branch.
+- Keep static mode deterministic and credential-free.
+- Preserve explicit provider failure states and added-line evidence checks.
+- Add a positive case and a silent near-miss control when changing a rule.
+- Leave real-diff verdicts and adjudications to a human.
+- Keep report text escaped and GitHub writes behind their existing gates.
+- Never execute model-proposed commands or commit secrets or generated reports.
+- The test runner executes checkout code on the host; use trusted repositories.
+- Update command and behavior documentation when changing public interfaces.
