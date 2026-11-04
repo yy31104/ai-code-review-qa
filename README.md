@@ -1,7 +1,7 @@
 # Python diff review
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3572A5?style=flat-square&labelColor=25292E)
-![Reports](https://img.shields.io/badge/Reports-HTML-3572A5?style=flat-square&labelColor=25292E)
+[![CI](https://github.com/yy31104/ai-code-review-qa/actions/workflows/evals.yml/badge.svg?branch=main)](https://github.com/yy31104/ai-code-review-qa/actions/workflows/evals.yml?query=branch%3Amain)
 
 A Git diff marks edited lines as new, even when the risky code was already there.
 
