@@ -13,10 +13,10 @@ Personal project. Built with AI assistance.
 
 ![Static report for a demo Python change introducing eval](docs/images/report-preview.png)
 
-A static run, with the checkout path shortened:
+A static run on the latest documentation change, with the checkout path shortened:
 
 ```text
-Review status: completed (mode=static, source=static_rules)
+Review status: no_changes (mode=static, source=none)
 Review report generated: <repo>/reports/review.html
 ```
 

@@ -124,7 +124,13 @@ OPENAI_API_KEY=your_api_key_here
 OPENAI_MODEL=gpt-5.4-mini
 ```
 
-Then run the CLI command from the root README. OpenAI mode sends the changed-file list and a diff truncated to `MAX_DIFF_CHARS` to the Responses API. The report records the configured model, status, and source.
+Run the CLI with provider mode selected explicitly:
+
+```bash
+AI_REVIEW_MODE=openai python backend/app/main.py --repo . --base HEAD~1 --head HEAD --output reports/review.html
+```
+
+OpenAI mode sends the changed-file list and a diff truncated to `MAX_DIFF_CHARS` to the Responses API. The report records the configured model, status, and source.
 
 Do not use provider mode for private code unless you are authorized to send that code to the configured provider. Do not put `.env` in a shared archive: `.gitignore` prevents a Git commit, but it does not prevent a generic ZIP command from including the file.
 
