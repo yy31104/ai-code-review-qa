@@ -13,13 +13,6 @@ Personal project. Built with AI assistance.
 
 ![Static report for a demo Python change introducing eval](docs/images/report-preview.png)
 
-A static run on the latest documentation change, with the checkout path shortened:
-
-```text
-Review status: no_changes (mode=static, source=none)
-Review report generated: <repo>/reports/review.html
-```
-
 ## How it works
 
 1. [git_diff_reader.py](backend/app/git_diff_reader.py) reads a working-tree diff or an explicit commit range.
@@ -52,21 +45,9 @@ Requires Git and Python 3.11+. The demo uses static mode and needs no API key.
 
 ```bash
 git clone https://github.com/yy31104/ai-code-review-qa.git
-```
-
-```bash
 cd ai-code-review-qa
-```
-
-```bash
 python3 -m venv .venv
-```
-
-```bash
 source .venv/bin/activate
-```
-
-```bash
 python -m pip install -r backend/requirements.txt
 ```
 
@@ -80,13 +61,7 @@ Tests and offline checks take a few seconds locally:
 
 ```bash
 python -m pytest -q
-```
-
-```bash
 python evals/run_local.py --out reports/evals/results.json
-```
-
-```bash
 python evals/render_report.py --in reports/evals/results.json --md reports/evals/summary.md --html reports/evals/summary.html
 ```
 
