@@ -66,7 +66,7 @@ Every `LogicalLine` carries two views of its text for this reason: `code` is the
 
 Boundary: these rules are lexical. There is no import resolution, type information, or data flow. A match is a shape that is usually a defect. Nothing here establishes that a line is wrong.
 
-Rule shape is settled against real code, not by argument. On a 120-commit corpus from three public Python projects, hand adjudication put first-pass precision at 19%, with ten of thirteen false positives caused by the missing attribution check above. That is what added attribution, fixed evidence anchoring, and deleted `new_function_without_test` outright. `evals/real_diffs.py` owns that loop, and `evals/LABELING_GUIDE.md` fixes the standard the verdicts are held to.
+A 120-commit development corpus from three public Python projects informed attribution, evidence anchoring, and the removal of `new_function_without_test`. Its preliminary labels were model-assisted and still require human verification; the results and provenance are in [development notes](../devlog/REAL_DIFF_NOTES.md). `evals/real_diffs.py` owns the measurement loop, with labeling criteria in `evals/LABELING_GUIDE.md`.
 
 ### Review generation — `llm_reviewer.py`
 
