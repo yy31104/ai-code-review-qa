@@ -22,7 +22,7 @@ BINARY_FILE = "binary_file"
 # whitespace is collapsed. The OR keeps short lines groundable: `x = 1` can only
 # be quoted with five characters. On this repository's own Python, a random
 # 20-character slice of one line occurs in a different line of the same file
-# about 0.1-0.6% of the time, against 2-6% for 4-8 characters.
+# about 0.1-0.9% of the time, against 2-6% for 4-8 characters.
 MIN_EVIDENCE_CHARS = 20
 MIN_EVIDENCE_COVERAGE = 0.5
 
