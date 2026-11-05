@@ -12,12 +12,52 @@ FILE_NOT_IN_DIFF = "file_not_in_diff"
 LINE_NOT_ADDED = "line_not_added"
 MISSING_LINE_ANCHOR = "missing_line_anchor"
 EVIDENCE_MISMATCH = "evidence_mismatch"
+EVIDENCE_TOO_SHORT = "evidence_too_short"
+MISSING_EVIDENCE = "missing_evidence"
 BINARY_FILE = "binary_file"
+
+# A quote that is only part of the line must be long enough to identify that
+# line. It passes if it has at least MIN_EVIDENCE_CHARS characters, or if it
+# covers at least MIN_EVIDENCE_COVERAGE of the line. Both are measured after
+# whitespace is collapsed. The OR keeps short lines groundable: `x = 1` can only
+# be quoted with five characters. On this repository's own Python, a random
+# 20-character slice of one line occurs in a different line of the same file
+# about 0.1-0.6% of the time, against 2-6% for 4-8 characters.
+MIN_EVIDENCE_CHARS = 20
+MIN_EVIDENCE_COVERAGE = 0.5
 
 
 def _normalize_source(text: str) -> str:
     """Collapse whitespace so quoting differences do not decide grounding."""
     return " ".join(text.split())
+
+
+def evidence_rejection(evidence: str | None, line_source: str) -> str | None:
+    """Return why ``evidence`` does not identify ``line_source``, or None if it does.
+
+    The quote may be part of the line (a partial quote) or the line may be part of
+    the quote (the model copied a little extra, such as the ``+`` marker or the
+    next line). Either way the overlapping text is the line content both sides
+    agree on, and it must pass the length-or-coverage test above.
+    """
+    quoted = _normalize_source(evidence or "")
+    if not quoted:
+        return MISSING_EVIDENCE
+
+    actual = _normalize_source(line_source)
+    if quoted in actual:
+        # Partial quote: the quote must be enough of the line to identify it.
+        if len(quoted) >= MIN_EVIDENCE_CHARS or len(quoted) >= MIN_EVIDENCE_COVERAGE * len(actual):
+            return None
+        return EVIDENCE_TOO_SHORT
+
+    if actual and actual in quoted:
+        # Over-long quote: the line must be enough of the quote that the quote is
+        # about this line, not about text the line merely appears inside.
+        if len(actual) >= MIN_EVIDENCE_CHARS or len(actual) >= MIN_EVIDENCE_COVERAGE * len(quoted):
+            return None
+
+    return EVIDENCE_MISMATCH
 
 
 def check_finding(finding: Finding, diff_index: DiffIndex) -> str | None:
@@ -38,13 +78,7 @@ def check_finding(finding: Finding, diff_index: DiffIndex) -> str | None:
     if finding.line not in diff_file.right_lines:
         return LINE_NOT_ADDED if diff_file.right_lines else MISSING_LINE_ANCHOR
 
-    if finding.evidence:
-        quoted = _normalize_source(finding.evidence)
-        actual = _normalize_source(diff_file.right_source.get(finding.line, ""))
-        if quoted and quoted not in actual and actual not in quoted:
-            return EVIDENCE_MISMATCH
-
-    return None
+    return evidence_rejection(finding.evidence, diff_file.right_source.get(finding.line, ""))
 
 
 def ground_findings(

@@ -83,7 +83,9 @@ Risk starts as a keyword match over the diff text and is then escalated by `esca
 
 ### Finding grounding — `finding_grounding.py`
 
-`ground_findings()` splits findings into grounded and rejected. A finding is grounded when its file is in the diff, its line is one the diff added, and its quoted evidence matches that line after whitespace normalisation. Rejections carry a reason (`file_not_in_diff`, `line_not_added`, `evidence_mismatch`, `binary_file`) and are kept in the artifact rather than dropped silently.
+`ground_findings()` splits findings into grounded and rejected. A finding is grounded when its file is in the diff, its line is one the diff added, and its quoted evidence identifies that line after whitespace normalisation. Rejections carry a reason (`file_not_in_diff`, `line_not_added`, `missing_evidence`, `evidence_too_short`, `evidence_mismatch`, `binary_file`) and are kept in the artifact rather than dropped silently.
+
+Evidence identifies a line when one of the two contains the other and the shared text is at least `MIN_EVIDENCE_CHARS` (20) characters or at least `MIN_EVIDENCE_COVERAGE` (half) of the longer side. A fragment such as `(` or `user` occurs in many lines and is rejected as `evidence_too_short`; a blank or one-character added line no longer matches every quote. A line-anchored finding without a quote is `missing_evidence`. File-level and summary-level findings have no line to quote and need none.
 
 Boundary: grounding establishes attribution. A grounded finding can still be semantically wrong, and a human review remains the decision point.
 
