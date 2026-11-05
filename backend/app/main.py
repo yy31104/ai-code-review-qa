@@ -116,6 +116,8 @@ def main() -> int:
     if review_failed:
         print(f"Review failed: {review.review_status_detail}", file=sys.stderr)
         return 2
+    if review.review_status == "incomplete":
+        print(f"Review incomplete: {review.review_status_detail}", file=sys.stderr)
     return 0
 
 

@@ -32,7 +32,7 @@
 {% set decision_key = review.review_decision | default("needs_human_review") %}
 {% set decision = decision_styles.get(decision_key, decision_styles["needs_human_review"]) %}
 {% set review_failed = review.review_status in ["configuration_error", "provider_failed", "invalid_output"] %}
-{% set review_incomplete = review.review_status in ["abstained", "no_changes"] %}
+{% set review_incomplete = review.review_status in ["abstained", "no_changes", "incomplete"] %}
 {% macro decision_badge(decision, style="") -%}
   <span class="badge {{ decision.badge }}"{% if style %} style="{{ style }}"{% endif %}>Decision: {{ decision.label }}</span>
 {%- endmacro %}
@@ -524,6 +524,9 @@
       {% elif review.review_status == "no_changes" %}
         <strong>No reviewable changes.</strong>
         <p>{{ review.review_status_detail }} No findings were produced.</p>
+      {% elif review.review_status == "incomplete" %}
+        <strong>Provider saw only part of the diff.</strong>
+        <p>{{ review.review_status_detail }} Static rules still covered the whole diff; review the omitted changes directly.</p>
       {% elif review.review_source == "static_rules" %}
         <strong>Deterministic static-analysis output.</strong>
         <p>No model was called. Findings come from named rules over added Python lines.</p>

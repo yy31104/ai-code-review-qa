@@ -71,7 +71,7 @@ jobs:
           if grep -Eq '^Review status: (no_changes|abstained) ' "$RUNNER_TEMP/review-output.log"; then
             echo "publishable=false" >> "$GITHUB_OUTPUT"
           else
-            grep -q '^Review status: completed ' "$RUNNER_TEMP/review-output.log"
+            grep -Eq '^Review status: (completed|incomplete) ' "$RUNNER_TEMP/review-output.log"
             test -s reports/github/summary-comment.json
             test -s reports/github/inline-review.json
             test -s reports/github/finding-fingerprints.json
