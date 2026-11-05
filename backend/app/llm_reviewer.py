@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from diff_index import normalize_path, parse_unified_diff
 from finding_grounding import ground_findings
+from sample_consistency import aggregate_by_agreement
 from schemas import (
     REVIEW_FAILURE_STATUSES,
     Finding,
@@ -24,6 +25,10 @@ from static_review import AnalysisResult, analyze_diff
 
 DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 MAX_DIFF_CHARS = 20000
+# Opt-in: draw this many provider samples for one review and use agreement
+# among them as each finding's confidence. Unset or 1 keeps a single call.
+CONSISTENCY_SAMPLES_ENV = "AI_REVIEW_CONSISTENCY_SAMPLES"
+MAX_CONSISTENCY_SAMPLES = 10
 # Bumped whenever the system prompt changes. Any evaluation result is only
 # comparable with another result produced under the same prompt version.
 REVIEW_PROMPT_VERSION = "2026-09-01.1"
@@ -208,6 +213,7 @@ def _static_review(diff: str, changed_files: list[str]) -> ReviewResult:
         review_source="static_rules",
         review_status_detail=None,
         review_model=None,
+        provider_samples=None,
         project_summary=_summarize_analysis(analysis, changed_files),
         changed_files=changed_files,
         risk_level=risk_level,
@@ -460,6 +466,7 @@ def _static_findings(diff: str, changed_files: list[str]) -> tuple[list[Finding]
             message=match.message,
             rule_id=match.rule_id,
             evidence=match.evidence,
+            confidence_source="rule",
         )
         for match in analysis.matches
     ]
@@ -486,6 +493,7 @@ def _review_with_openai(diff: str, changed_files: list[str]) -> ReviewResult:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         raise ReviewConfigurationError("OPENAI_API_KEY is not set.")
+    sample_count = configured_sample_count()
 
     model = _configured_openai_model()
     provider_diff = build_provider_diff(diff)
@@ -493,37 +501,45 @@ def _review_with_openai(diff: str, changed_files: list[str]) -> ReviewResult:
     from openai import OpenAI
 
     client = OpenAI(api_key=api_key)
-    response = client.responses.parse(
-        model=model,
-        input=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": _provider_user_message(provider_diff, changed_files)},
-        ],
-        text_format=ProviderReview,
-    )
+    # Built once so every sample sees byte-identical input, boundary marker
+    # included; samples then differ only by the provider's own sampling.
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": _provider_user_message(provider_diff, changed_files)},
+    ]
+    samples: list[ProviderReview] = []
+    for _ in range(sample_count):
+        response = client.responses.parse(
+            model=model,
+            input=messages,
+            text_format=ProviderReview,
+        )
+        parsed = response.output_parsed
+        if not isinstance(parsed, ProviderReview):
+            raise InvalidReviewOutputError("OpenAI response did not parse into ProviderReview")
+        samples.append(parsed)
 
-    parsed = response.output_parsed
-    if not isinstance(parsed, ProviderReview):
-        raise InvalidReviewOutputError("OpenAI response did not parse into ProviderReview")
-
-    proposed = [finding.to_finding() for finding in parsed.findings]
-    grounded, rejected = ground_findings(proposed, parse_unified_diff(diff))
+    diff_index = parse_unified_diff(diff)
+    proposals = [[finding.to_finding() for finding in sample.findings] for sample in samples]
+    if sample_count == 1:
+        grounded, rejected = ground_findings(proposals[0], diff_index)
+        provider_detail = _grounding_detail(grounded, rejected)
+    else:
+        grounded, rejected = aggregate_by_agreement(proposals, diff_index)
+        provider_detail = _agreement_detail(sample_count, grounded, rejected)
     static, analysis = _static_findings(diff, changed_files)
     findings = _merge_findings(static, grounded)
 
     risk_level = escalate_risk(_estimate_risk(diff, changed_files), findings)
-    details = [
-        detail
-        for detail in (_coverage_detail(provider_diff), _grounding_detail(grounded, rejected))
-        if detail
-    ]
+    details = [detail for detail in (_coverage_detail(provider_diff), provider_detail) if detail]
     review = ReviewResult(
         review_mode="openai",
         review_status="completed" if provider_diff.complete else "incomplete",
         review_source="provider",
         review_status_detail=" ".join(details) or None,
         review_model=model,
-        project_summary=parsed.project_summary,
+        provider_samples=sample_count,
+        project_summary=samples[0].project_summary,
         changed_files=changed_files,
         risk_level=risk_level,
         findings=findings,
@@ -549,6 +565,39 @@ def _grounding_detail(grounded: list[Finding], rejected: list[Finding]) -> str |
         f"Grounding kept {len(grounded)} of {len(grounded) + len(rejected)} proposed "
         f"findings; rejected: {', '.join(reasons)}."
     )
+
+
+def _agreement_detail(
+    sample_count: int, grounded: list[Finding], rejected: list[Finding]
+) -> str:
+    """State how provider confidence was measured, and what grounding removed."""
+    detail = (
+        f"Provider confidence is agreement across {sample_count} samples of the same "
+        f"request: {len(grounded)} distinct grounded finding(s)."
+    )
+    if rejected:
+        reasons = sorted({finding.grounding_rejection or "unknown" for finding in rejected})
+        detail += (
+            f" {len(rejected)} distinct proposal(s) were rejected by grounding: "
+            f"{', '.join(reasons)}."
+        )
+    return detail
+
+
+def configured_sample_count() -> int:
+    """Read the opt-in sample count. Unset means 1, i.e. a single provider call."""
+    raw = os.getenv(CONSISTENCY_SAMPLES_ENV, "").strip()
+    if not raw:
+        return 1
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 0
+    if not 1 <= value <= MAX_CONSISTENCY_SAMPLES:
+        raise ReviewConfigurationError(
+            f"{CONSISTENCY_SAMPLES_ENV} must be an integer from 1 to {MAX_CONSISTENCY_SAMPLES}."
+        )
+    return value
 
 
 def _configured_openai_model() -> str:

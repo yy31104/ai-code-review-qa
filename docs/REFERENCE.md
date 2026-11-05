@@ -79,7 +79,7 @@ The tool never generates verdicts. A publishable precision number is worth exact
 | --- | --- |
 | Each rule fires on its own labeled case at the expected file and line | Semantic correctness of provider findings |
 | Each rule stays silent on its labeled near-miss control | Finding precision/recall on labeled **real** PR diffs |
-| Schema parsing and explicit provider failure states | Calibration of the confidence values the rules assign |
+| Schema parsing and explicit provider failure states | Calibration of rule confidence values and of provider sample agreement |
 | Risk-rule and review-decision regression behavior | Whether a model adds anything over these rules |
 | Grounding rejects off-diff files, lines, and mismatched evidence | Safe execution of tests from an untrusted repository |
 | GitHub payload escaping, caps, fingerprints, and mutation gates | Broad language/framework review quality |
@@ -130,6 +130,20 @@ AI_REVIEW_MODE=openai python backend/app/main.py --repo . --base HEAD~1 --head H
 ```
 
 OpenAI mode sends the changed-file list and a diff truncated to `MAX_DIFF_CHARS` to the Responses API. The report records the configured model, status, and source.
+
+### Provider confidence
+
+The provider schema asks for a `confidence` per finding. That number is the model's own estimate, which is poorly calibrated (Xiong et al., ICLR 2024). It stays in the JSON artifact with `confidence_source: model_self_report`, and the report shows `confidence not measured` instead of it.
+
+To measure provider confidence, opt in to sampling:
+
+```text
+AI_REVIEW_CONSISTENCY_SAMPLES=5
+```
+
+With a value from 2 to 10, the same request is sent that many times. Each sample is grounded separately; a finding's confidence is the share of samples that reported it on the same file, line and category (`confidence_source: sample_agreement`, with `sample_support` and `sample_count`). The report shows `in 3/5 samples`, and the GitHub inline floor of 0.5 then means a majority of samples. Unset or `1` keeps one call. Any other value is a `configuration_error`. If any sample fails, the whole review fails with that sample's status; there is no partial result.
+
+Sampling multiplies provider cost and the number of times the diff is sent by the sample count. Rule findings keep the fixed confidence each rule assigns, shown as `rule confidence`.
 
 Do not use provider mode for private code unless you are authorized to send that code to the configured provider. Do not put `.env` in a shared archive: `.gitignore` prevents a Git commit, but it does not prevent a generic ZIP command from including the file.
 
