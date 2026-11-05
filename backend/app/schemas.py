@@ -15,6 +15,10 @@ FindingCategory = Literal[
 FindingSeverity = Literal["info", "low", "medium", "high"]
 ReviewStatus = Literal[
     "completed",
+    # The provider returned a valid review, but it was only shown part of the
+    # diff. Static rules still cover the whole diff; the decision is forced to
+    # human review because the provider's silence on unseen files means nothing.
+    "incomplete",
     "configuration_error",
     "provider_failed",
     "invalid_output",

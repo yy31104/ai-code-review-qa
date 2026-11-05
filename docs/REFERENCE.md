@@ -100,13 +100,14 @@ The eval set is synthetic: the diffs were written to exercise the rules. It show
 | --- | --- | --- | --- |
 | Deterministic run with reviewable Python additions | `completed` | `static_rules` | success; artifacts allowed |
 | Provider output parsed and validated | `completed` | `provider` | success |
+| Provider output valid, but the diff exceeded the provider budget | `incomplete` | `provider` | success; decision forced to `needs_human_review` |
 | Missing/unknown configuration | `configuration_error` | `none` | exit 2 |
 | Provider request failed | `provider_failed` | `none` | exit 2 |
 | Provider output failed schema validation | `invalid_output` | `none` | exit 2 |
 | No diff or no Python files in scope | `no_changes` | `none` | success; no GitHub artifacts |
 | Python change exists but has no readable added lines | `abstained` | `none` | success; no GitHub artifacts |
 
-`review_mode` says which reviewer was requested; `review_status` says what happened during this run. A completed review with zero findings remains `completed`: status is never inferred from `findings == 0`. Failure, abstention, and no-change runs still save an HTML artifact, but do not emit GitHub artifacts. Provider failures never substitute static findings.
+`review_mode` says which reviewer was requested; `review_status` says what happened during this run. A completed review with zero findings remains `completed`: status is never inferred from `findings == 0`. Failure, abstention, and no-change runs still save an HTML artifact, but do not emit GitHub artifacts. Provider failures never substitute static findings. A completed or incomplete provider review always includes static rule findings over the whole diff, so a provider that misses a defect, never sees it, or is instructed by text inside the diff to stay silent cannot remove a rule finding.
 
 ## Optional provider mode
 
@@ -192,7 +193,7 @@ Fork PRs are skipped by the mutation workflow. It uses `pull_request`, not `pull
 - Provider raw output, token usage, latency, and cost are not persisted yet.
 - Test execution is host-level and unsafe for arbitrary untrusted repositories.
 - The project is not a GitHub App and does not mutate fork PRs.
-- Diff egress is character-truncated, so large changes may receive incomplete provider context.
+- Diff egress is limited to `MAX_DIFF_CHARS` (20000). Whole files are sent while they fit; anything left out is listed in `review_status_detail`, the status becomes `incomplete`, and the decision is forced to human review. Large changes are not yet reviewed in chunks.
 - Finding grounding validates file/line provenance, not semantic correctness.
 - Comparing rules against removed lines can also suppress a newly added instance of the same pattern within that change block.
 - Evidence matching collapses whitespace and accepts substring matches; it checks attribution rather than semantic correctness.
