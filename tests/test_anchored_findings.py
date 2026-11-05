@@ -436,3 +436,42 @@ def test_openai_provider_failure_does_not_expose_exception_text(monkeypatch: pyt
     assert review.findings == []
     assert review.review_status_detail == "OpenAI request failed with RuntimeError."
     assert "sensitive-provider-detail" not in review.review_status_detail
+
+
+def test_provider_finding_quoting_a_fragment_is_rejected_and_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real line number plus a one-token quote is not evidence about that line."""
+    parsed = ProviderReview(
+        project_summary="Token issuing changed.",
+        findings=[
+            ProposedFinding(
+                file="backend/app/auth.py",
+                line=5,
+                category="possible_bug",
+                severity="high",
+                confidence=0.95,
+                message="This line divides by zero.",
+                evidence="(",
+            ),
+            ProposedFinding(
+                file="backend/app/auth.py",
+                line=5,
+                category="security_reliability",
+                severity="high",
+                confidence=0.6,
+                message="The raw password is passed into token construction.",
+                evidence="build(user.password)",
+            ),
+        ],
+    )
+    _fake_openai(monkeypatch, parsed)
+
+    review = _review_with_openai(AUTH_DIFF, ["backend/app/auth.py"])
+
+    assert [f.message for f in review.findings] == [
+        "The raw password is passed into token construction."
+    ]
+    assert [f.grounding_rejection for f in review.rejected_findings] == ["evidence_too_short"]
+    assert "Grounding kept 1 of 2" in (review.review_status_detail or "")
+    assert "evidence_too_short" in (review.review_status_detail or "")
