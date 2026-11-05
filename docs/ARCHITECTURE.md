@@ -73,7 +73,7 @@ A 120-commit development corpus from three public Python projects informed attri
 `review_diff()` selects one of two intentional paths:
 
 - `static`: `static_review` rules create visibly labeled `static_rules` findings without a network call;
-- `openai`: the changed-file list and truncated diff are sent to the configured provider and parsed as `ProviderReview`.
+- `openai`: the changed-file list and truncated diff are sent to the configured provider and parsed as `ProviderReview`. `change_context.py` adds the complete innermost function or class around each added line in the sent diff, from the post-change file, fenced by the same boundary marker and capped by its own budget.
 
 `ProviderReview` is deliberately narrower than `ReviewResult`. A model fills a summary and a list of proposed findings, and nothing else. Risk level, review status, provenance, test results and the review decision are computed by the pipeline, so a model response cannot move the merge gate by asserting a field.
 

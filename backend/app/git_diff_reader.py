@@ -169,3 +169,42 @@ def _list_project_files(repo: Path) -> list[str]:
         files.append(path.relative_to(repo).as_posix())
 
     return sorted(files)
+
+
+#: Larger files are not read for provider context.
+MAX_SOURCE_BYTES = 1_000_000
+
+
+def read_post_change_sources(
+    repo_path: str | Path, paths: list[str], head: str | None = None
+) -> dict[str, str]:
+    """Read the post-change text of ``paths``, which are relative to the git top level.
+
+    With ``head`` the text comes from that commit, matching a ``base..head``
+    diff. Without it the text comes from the working tree, matching the
+    working-tree diff. Unreadable, oversized, or out-of-repository paths are left
+    out; the caller treats a missing path as context it does not have.
+    """
+    repo = Path(repo_path).resolve()
+    top_level = _run_git(repo, ["rev-parse", "--show-toplevel"])
+    if top_level.returncode != 0 or not top_level.stdout.strip():
+        return {}
+    root = Path(top_level.stdout.strip()).resolve()
+
+    sources: dict[str, str] = {}
+    for path in paths:
+        if head:
+            result = _run_git(repo, ["show", f"{head}:{path}"])
+            if result.returncode == 0 and len(result.stdout.encode("utf-8")) <= MAX_SOURCE_BYTES:
+                sources[path] = result.stdout
+            continue
+
+        candidate = (root / path).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            continue
+        if not candidate.is_file() or candidate.stat().st_size > MAX_SOURCE_BYTES:
+            continue
+        sources[path] = candidate.read_text(encoding="utf-8", errors="replace")
+    return sources

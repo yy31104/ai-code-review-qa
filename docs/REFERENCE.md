@@ -131,6 +131,8 @@ AI_REVIEW_MODE=openai python backend/app/main.py --repo . --base HEAD~1 --head H
 
 OpenAI mode sends the changed-file list and a diff truncated to `MAX_DIFF_CHARS` to the Responses API. The report records the configured model, status, and source.
 
+It also sends, as context, the complete innermost function or class that encloses each changed Python line, read from the post-change file. Context has its own budget (`AI_REVIEW_CONTEXT_CHARS`, default 8000, `0` disables, maximum 50000). Whole scopes are sent while they fit; a scope that does not fit, or a file whose source cannot be read, parsed, or matched to the diff, is listed in `review_status_detail`. Context comes only from the part of the diff the provider receives, so it never changes which files are sent, partial, or omitted, nor the `incomplete` status.
+
 ### Provider confidence
 
 The provider schema asks for a `confidence` per finding. That number is the model's own estimate, which is poorly calibrated (Xiong et al., ICLR 2024). It stays in the JSON artifact with `confidence_source: model_self_report`, and the report shows `confidence not measured` instead of it.
@@ -143,7 +145,7 @@ AI_REVIEW_CONSISTENCY_SAMPLES=5
 
 With a value from 2 to 10, the same request is sent that many times. Each sample is grounded separately; a finding's confidence is the share of samples that reported it on the same file, line and category (`confidence_source: sample_agreement`, with `sample_support` and `sample_count`). The report shows `in 3/5 samples`, and the GitHub inline floor of 0.5 then means a majority of samples. Unset or `1` keeps one call. Any other value is a `configuration_error`. If any sample fails, the whole review fails with that sample's status; there is no partial result.
 
-Sampling multiplies provider cost and the number of times the diff is sent by the sample count. Rule findings keep the fixed confidence each rule assigns, shown as `rule confidence`.
+Sampling multiplies provider cost, and the number of times the diff and its enclosing-scope context are sent, by the sample count. Every sample receives the same context. Rule findings keep the fixed confidence each rule assigns, shown as `rule confidence`.
 
 Do not use provider mode for private code unless you are authorized to send that code to the configured provider. Do not put `.env` in a shared archive: `.gitignore` prevents a Git commit, but it does not prevent a generic ZIP command from including the file.
 

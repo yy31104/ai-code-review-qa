@@ -140,6 +140,9 @@ class ReviewResult(BaseModel):
     # Number of provider samples drawn for this review. 1 is a single call; 2 or
     # more means provider confidence is sample agreement. None: no provider call.
     provider_samples: Optional[int] = None
+    # Enclosing scopes sent to the provider as context, as "path:start-end kind
+    # name". Empty when no provider call was made or no context was sent.
+    provider_context: List[str] = Field(default_factory=list)
     project_summary: str
     changed_files: List[str] = Field(default_factory=list)
     risk_level: str
