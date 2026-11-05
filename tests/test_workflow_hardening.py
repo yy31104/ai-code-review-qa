@@ -1,12 +1,16 @@
 """Static checks on the GitHub Actions workflows.
 
-Two properties are enforced for every workflow file:
+Three properties are enforced for every workflow file:
 
 - No ``${{ ... }}`` expression appears inside a ``run:`` script. GitHub expands
   expressions textually before the shell starts, so a value such as a dispatch
   input becomes shell source. Values must reach the script through ``env:``.
 - Every ``uses:`` reference is pinned to a full 40-character commit SHA, so a
   moved or rewritten tag cannot change the code a job runs.
+- Every ``actions/checkout`` step sets ``persist-credentials: false``. Otherwise
+  the job token stays in ``.git/config`` for every later step, and any step
+  that uploads or prints the checkout can leak it. No job here pushes or
+  fetches after checkout, so none needs the stored credential.
 
 The checks read the YAML as text; the CI environment installs no YAML parser.
 """
@@ -78,6 +82,27 @@ def unpinned_uses(text: str) -> list[str]:
     return refs
 
 
+def checkouts_keeping_credentials(text: str) -> list[int]:
+    """Return line numbers of checkout steps without ``persist-credentials: false``."""
+    lines = text.splitlines()
+    missing: list[int] = []
+    for number, line in enumerate(lines, start=1):
+        match = re.match(r"^(\s*)(?:-\s+)?uses:\s*actions/checkout@", line)
+        if match is None:
+            continue
+        key_indent = len(match.group(1)) if not line.lstrip().startswith("-") else _indent(line) + 2
+        settings: list[str] = []
+        following = lines[number:]
+        if following and following[0].strip() == "with:" and _indent(following[0]) == key_indent:
+            for setting in following[1:]:
+                if setting.strip() and _indent(setting) <= key_indent:
+                    break
+                settings.append(setting.split("#", 1)[0].strip())
+        if "persist-credentials: false" not in settings:
+            missing.append(number)
+    return missing
+
+
 def test_workflows_are_present() -> None:
     names = {path.name for path in WORKFLOWS}
     assert {"pr-comment.yml", "pr-summary.yml", "evals.yml", "ai-review.yml"} <= names
@@ -93,6 +118,35 @@ def test_every_action_is_pinned_to_a_commit_sha(workflow: Path) -> None:
     text = workflow.read_text(encoding="utf-8")
     assert "uses:" in text
     assert unpinned_uses(text) == []
+
+
+@pytest.mark.parametrize("workflow", WORKFLOWS, ids=lambda path: path.name)
+def test_every_checkout_drops_its_credentials(workflow: Path) -> None:
+    assert checkouts_keeping_credentials(workflow.read_text(encoding="utf-8")) == []
+
+
+def test_credential_checker_flags_checkouts_that_keep_the_token() -> None:
+    steps = (
+        "      - name: Bare\n"
+        "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0\n"
+        "      - name: Other settings only\n"
+        "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0\n"
+        "        with:\n"
+        "          fetch-depth: 0\n"
+        "      - name: Explicitly true\n"
+        "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0\n"
+        "        with:\n"
+        "          persist-credentials: true\n"
+        "      - name: Safe\n"
+        "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0\n"
+        "        with:\n"
+        "          fetch-depth: 2\n"
+        "          persist-credentials: false  # no later step needs the token\n"
+        "      - name: Next step\n"
+        "        with:\n"
+        "          persist-credentials: false\n"
+    )
+    assert checkouts_keeping_credentials(steps) == [2, 4, 8]
 
 
 def test_checker_flags_the_pattern_this_change_removed() -> None:
