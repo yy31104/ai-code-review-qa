@@ -78,7 +78,7 @@ GitHub writes use opt-in workflow gates. Report generation and comment payload c
 ## Limits
 
 - Rules cover Python patterns with lexical matching. Cross-file moves and same-block attribution can cause false positives or missed findings; grounding checks references, and a person judges correctness.
-- Real-diff precision, recall, and provider quality remain unmeasured on a held-out human-labeled dataset. Confidence values are heuristic.
+- On 438 real BugsInPy bugs, the static rules flag the buggy line in at most 3.2% of cases ([report](evals/results/bugsinpy-static.md)); provider recall and real-diff precision remain unmeasured. Confidence values are heuristic.
 - Run against trusted checkouts: the CLI executes their detected tests on the host. Provider mode sends filenames and a character-limited diff to OpenAI; see [data handling](docs/DATA_HANDLING.md).
 
 ## Docs
