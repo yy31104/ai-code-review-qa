@@ -26,6 +26,14 @@ ReviewStatus = Literal[
     "no_changes",
 ]
 ReviewSource = Literal["provider", "static_rules", "none"]
+# Where a finding's `confidence` number came from.
+# - "rule": the fixed value a deterministic rule assigns to every match.
+# - "model_self_report": the number the provider wrote about its own finding.
+#   Verbalized confidence is poorly calibrated (Xiong et al., ICLR 2024), so it
+#   is kept in artifacts for auditing but never shown in the report.
+# - "sample_agreement": the share of independent provider samples over the same
+#   request that reported this finding (see `sample_consistency.py`).
+ConfidenceSource = Literal["rule", "model_self_report", "sample_agreement"]
 REVIEW_FAILURE_STATUSES = frozenset({"configuration_error", "provider_failed", "invalid_output"})
 REVIEW_NON_PUBLISHABLE_STATUSES = REVIEW_FAILURE_STATUSES | frozenset(
     {"abstained", "no_changes"}
@@ -59,6 +67,11 @@ class Finding(BaseModel):
     # Why grounding rejected the finding, when it did. None means the finding
     # was either accepted or never submitted for grounding.
     grounding_rejection: Optional[str] = None
+    confidence_source: Optional[ConfidenceSource] = None
+    # Set only when confidence_source is "sample_agreement": how many of
+    # `sample_count` provider samples reported this finding after grounding.
+    sample_support: Optional[int] = None
+    sample_count: Optional[int] = None
 
     @field_validator("confidence", mode="before")
     @classmethod
@@ -102,6 +115,7 @@ class ProposedFinding(BaseModel):
             message=self.message,
             rule_id=None,
             evidence=self.evidence,
+            confidence_source="model_self_report",
         )
 
 
@@ -123,6 +137,9 @@ class ReviewResult(BaseModel):
     review_source: ReviewSource = "static_rules"
     review_status_detail: Optional[str] = None
     review_model: Optional[str] = None
+    # Number of provider samples drawn for this review. 1 is a single call; 2 or
+    # more means provider confidence is sample agreement. None: no provider call.
+    provider_samples: Optional[int] = None
     project_summary: str
     changed_files: List[str] = Field(default_factory=list)
     risk_level: str

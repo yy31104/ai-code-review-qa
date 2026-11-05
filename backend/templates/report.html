@@ -505,6 +505,9 @@
           {% if review.review_model %}
             &nbsp;&middot;&nbsp;model: {{ review.review_model }}
           {% endif %}
+          {% if review.provider_samples and review.provider_samples > 1 %}
+            &nbsp;&middot;&nbsp;samples: {{ review.provider_samples }}
+          {% endif %}
           &nbsp;&middot;&nbsp;
           Generated <time>{{ generated_at }}</time>
         </p>
@@ -741,7 +744,16 @@
                   <span>{{ "line " ~ finding.line if finding.line is not none else "file-level" }}</span>
                   <span>{{ finding.category }}</span>
                   <span class="badge badge-{{ finding.severity }}">{{ finding.severity }}</span>
-                  <span>{{ "%.0f"|format(finding.confidence * 100) }}% confidence</span>
+                  {# A provider's number about its own finding is never shown: it is
+                     not calibrated. Provider confidence appears only when it was
+                     measured as agreement across samples. #}
+                  {% if finding.confidence_source == "sample_agreement" %}
+                    <span title="Share of independent provider samples over the same request that reported this finding">in {{ finding.sample_support }}/{{ finding.sample_count }} samples</span>
+                  {% elif finding.rule_id %}
+                    <span>{{ "%.0f"|format(finding.confidence * 100) }}% rule confidence</span>
+                  {% else %}
+                    <span title="Set AI_REVIEW_CONSISTENCY_SAMPLES to 2 or more to measure provider confidence as sample agreement">confidence not measured</span>
+                  {% endif %}
                   {% if finding.rule_id %}
                     <span>rule {{ finding.rule_id }}</span>
                   {% else %}
