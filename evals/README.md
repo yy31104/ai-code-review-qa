@@ -137,3 +137,26 @@ Read [`LABELING_GUIDE.md`](LABELING_GUIDE.md) before entering verdicts. It fixes
 The committed `verdicts_dev_pass*.jsonl` files predate that rule and contain model-assisted preliminary triage requested by the maintainer. They are development artifacts, carry no machine-readable annotator provenance, and must not support a published metric until a person verifies them.
 
 Harvested corpora are gitignored: the diffs belong to their upstream projects and are regenerated from the commands above. Verdict files are keyed by commit SHA and are the part worth committing.
+
+## Real-bug recall on BugsInPy
+
+`bugsinpy_recall.py` answers a third question: of real, already-fixed Python
+bugs, how many does the reviewer flag on the line that caused them? It reverses
+each BugsInPy (Widyasari et al., ESEC/FSE 2020) fix patch to get the change that
+introduced the bug; the lines the fix removed are the known-buggy lines. No human
+labels are needed.
+
+```bash
+git clone --depth 1 https://github.com/soarsmu/BugsInPy /tmp/BugsInPy
+python evals/bugsinpy_recall.py --bugsinpy /tmp/BugsInPy \
+    --out evals/results/bugsinpy-static.json --md evals/results/bugsinpy-static.md
+```
+
+Static rules, BugsInPy commit `11c5f1e` ([report](results/bugsinpy-static.md)):
+**3.2% line-level recall (14 of 438 scorable bugs)**; 62 further bugs were fixed by
+only adding code and have no buggy line to point at. The hits are rule matches on
+removed lines, mostly `assert` and `except` lines inside rewritten blocks, so 3.2%
+is an upper bound. The forward fix diffs drew findings in 16 of 500 cases.
+
+`--reviewer openai` runs the provider path through the same interface. It needs
+`OPENAI_API_KEY`, spends money, and has not been run.
