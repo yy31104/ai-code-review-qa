@@ -18,7 +18,9 @@ In static mode, the review engine does not call OpenAI.
 
 The user-configured project test command may still do whatever that project does. This tool detects and runs supported test commands, but it does not control third-party test behavior, dependency behavior, or network access from the project under review.
 
-In OpenAI mode, the changed-file list and git diff are sent to the OpenAI Responses API. The diff payload is truncated by `MAX_DIFF_CHARS = 20000` in `backend/app/llm_reviewer.py`.
+In OpenAI mode, the changed-file list and git diff are sent to the OpenAI Responses API. The diff payload is truncated by `MAX_DIFF_CHARS = 20000` in `backend/app/llm_reviewer.py`. With `AI_REVIEW_CONSISTENCY_SAMPLES=N` (2 to 10), the same payload is sent N times in one review.
+
+OpenAI mode also sends the complete innermost function or class around each changed Python line, read from the post-change file (the `--head` commit, or the working tree). That includes unchanged lines of those functions and classes. Only files whose diff was sent contribute, and the total is capped by `MAX_CONTEXT_CHARS = 8000` in `backend/app/change_context.py`; set `AI_REVIEW_CONTEXT_CHARS=0` to send no context. With sampling enabled, the context is sent with every sample. The report's JSON records each scope sent in `provider_context`.
 
 ## Secrets and Private-Code Boundaries
 

@@ -20,8 +20,9 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Resolve PR diff range
@@ -40,7 +41,7 @@ jobs:
           echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.11"
 
@@ -71,7 +72,7 @@ jobs:
           if grep -Eq '^Review status: (no_changes|abstained) ' "$RUNNER_TEMP/review-output.log"; then
             echo "publishable=false" >> "$GITHUB_OUTPUT"
           else
-            grep -q '^Review status: completed ' "$RUNNER_TEMP/review-output.log"
+            grep -Eq '^Review status: (completed|incomplete) ' "$RUNNER_TEMP/review-output.log"
             test -s reports/github/summary-comment.json
             test -s reports/github/inline-review.json
             test -s reports/github/finding-fingerprints.json
@@ -79,7 +80,7 @@ jobs:
           fi
 
       - name: Upload PR summary artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: pr-summary-artifacts
           path: |
@@ -99,15 +100,17 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.11"
 
       - name: Download PR summary artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: pr-summary-artifacts
           path: .
@@ -118,7 +121,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           mkdir -p reports/github
-          gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
             --paginate > reports/github/existing-comments.json
 
       - name: Decide summary comment action
@@ -135,7 +138,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           gh api --method POST \
-            "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
             --input reports/github/summary-comment.json
 
       - name: Patch summary comment
@@ -146,7 +149,7 @@ jobs:
         run: |
           COMMENT_ID="${DECISION#patch }"
           gh api --method PATCH \
-            "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
+            "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" \
             --input reports/github/summary-comment.json
 
   post-inline:
@@ -161,17 +164,18 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.11"
 
       - name: Download PR summary artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: pr-summary-artifacts
           path: .
@@ -204,7 +208,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}/comments" \
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/comments" \
             --paginate > reports/github/existing-review-comments.json
 
       - name: Build stale inline detection plan
@@ -280,7 +284,7 @@ jobs:
           fi
 
           if gh api --method POST \
-            "repos/${{ github.repository }}/pulls/${PR_NUMBER}/reviews" \
+            "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/reviews" \
             --input reports/github/inline-to-post.json; then
             echo "Posted inline review comments."
           else
@@ -290,7 +294,7 @@ jobs:
 
       - name: Upload inline posting debug artifact
         if: ${{ always() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: pr-inline-to-post
           path: |
@@ -312,15 +316,17 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.11"
 
       - name: Download PR summary artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: pr-summary-artifacts
           path: .
@@ -332,7 +338,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           mkdir -p reports/github
-          gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}/comments" \
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/comments" \
             --paginate > reports/github/existing-review-comments.json
 
       - name: Build stale inline detection plan
@@ -449,7 +455,7 @@ jobs:
 
       - name: Upload stale resolve debug artifact
         if: ${{ always() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: pr-stale-resolve
           path: |

@@ -79,7 +79,7 @@ The tool never generates verdicts. A publishable precision number is worth exact
 | --- | --- |
 | Each rule fires on its own labeled case at the expected file and line | Semantic correctness of provider findings |
 | Each rule stays silent on its labeled near-miss control | Finding precision/recall on labeled **real** PR diffs |
-| Schema parsing and explicit provider failure states | Calibration of the confidence values the rules assign |
+| Schema parsing and explicit provider failure states | Calibration of rule confidence values and of provider sample agreement |
 | Risk-rule and review-decision regression behavior | Whether a model adds anything over these rules |
 | Grounding rejects off-diff files, lines, and mismatched evidence | Safe execution of tests from an untrusted repository |
 | GitHub payload escaping, caps, fingerprints, and mutation gates | Broad language/framework review quality |
@@ -100,13 +100,14 @@ The eval set is synthetic: the diffs were written to exercise the rules. It show
 | --- | --- | --- | --- |
 | Deterministic run with reviewable Python additions | `completed` | `static_rules` | success; artifacts allowed |
 | Provider output parsed and validated | `completed` | `provider` | success |
+| Provider output valid, but the diff exceeded the provider budget | `incomplete` | `provider` | success; decision forced to `needs_human_review` |
 | Missing/unknown configuration | `configuration_error` | `none` | exit 2 |
 | Provider request failed | `provider_failed` | `none` | exit 2 |
 | Provider output failed schema validation | `invalid_output` | `none` | exit 2 |
 | No diff or no Python files in scope | `no_changes` | `none` | success; no GitHub artifacts |
 | Python change exists but has no readable added lines | `abstained` | `none` | success; no GitHub artifacts |
 
-`review_mode` says which reviewer was requested; `review_status` says what happened during this run. A completed review with zero findings remains `completed`: status is never inferred from `findings == 0`. Failure, abstention, and no-change runs still save an HTML artifact, but do not emit GitHub artifacts. Provider failures never substitute static findings.
+`review_mode` says which reviewer was requested; `review_status` says what happened during this run. A completed review with zero findings remains `completed`: status is never inferred from `findings == 0`. Failure, abstention, and no-change runs still save an HTML artifact, but do not emit GitHub artifacts. Provider failures never substitute static findings. A completed or incomplete provider review always includes static rule findings over the whole diff, so a provider that misses a defect, never sees it, or is instructed by text inside the diff to stay silent cannot remove a rule finding.
 
 ## Optional provider mode
 
@@ -129,6 +130,22 @@ AI_REVIEW_MODE=openai python backend/app/main.py --repo . --base HEAD~1 --head H
 ```
 
 OpenAI mode sends the changed-file list and a diff truncated to `MAX_DIFF_CHARS` to the Responses API. The report records the configured model, status, and source.
+
+It also sends, as context, the complete innermost function or class that encloses each changed Python line, read from the post-change file. Context has its own budget (`AI_REVIEW_CONTEXT_CHARS`, default 8000, `0` disables, maximum 50000). Whole scopes are sent while they fit; a scope that does not fit, or a file whose source cannot be read, parsed, or matched to the diff, is listed in `review_status_detail`. Context comes only from the part of the diff the provider receives, so it never changes which files are sent, partial, or omitted, nor the `incomplete` status.
+
+### Provider confidence
+
+The provider schema asks for a `confidence` per finding. That number is the model's own estimate, which is poorly calibrated (Xiong et al., ICLR 2024). It stays in the JSON artifact with `confidence_source: model_self_report`, and the report shows `confidence not measured` instead of it.
+
+To measure provider confidence, opt in to sampling:
+
+```text
+AI_REVIEW_CONSISTENCY_SAMPLES=5
+```
+
+With a value from 2 to 10, the same request is sent that many times. Each sample is grounded separately; a finding's confidence is the share of samples that reported it on the same file, line and category (`confidence_source: sample_agreement`, with `sample_support` and `sample_count`). The report shows `in 3/5 samples`, and the GitHub inline floor of 0.5 then means a majority of samples. Unset or `1` keeps one call. Any other value is a `configuration_error`. If any sample fails, the whole review fails with that sample's status; there is no partial result.
+
+Sampling multiplies provider cost, and the number of times the diff and its enclosing-scope context are sent, by the sample count. Every sample receives the same context. Rule findings keep the fixed confidence each rule assigns, shown as `rule confidence`.
 
 Do not use provider mode for private code unless you are authorized to send that code to the configured provider. Do not put `.env` in a shared archive: `.gitignore` prevents a Git commit, but it does not prevent a generic ZIP command from including the file.
 
@@ -192,7 +209,7 @@ Fork PRs are skipped by the mutation workflow. It uses `pull_request`, not `pull
 - Provider raw output, token usage, latency, and cost are not persisted yet.
 - Test execution is host-level and unsafe for arbitrary untrusted repositories.
 - The project is not a GitHub App and does not mutate fork PRs.
-- Diff egress is character-truncated, so large changes may receive incomplete provider context.
+- Diff egress is limited to `MAX_DIFF_CHARS` (20000). Whole files are sent while they fit; anything left out is listed in `review_status_detail`, the status becomes `incomplete`, and the decision is forced to human review. Large changes are not yet reviewed in chunks.
 - Finding grounding validates file/line provenance, not semantic correctness.
 - Comparing rules against removed lines can also suppress a newly added instance of the same pattern within that change block.
 - Evidence matching collapses whitespace and accepts substring matches; it checks attribution rather than semantic correctness.

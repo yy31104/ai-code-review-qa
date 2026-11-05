@@ -24,12 +24,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          persist-credentials: false
           fetch-depth: 2
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.11"
 
@@ -59,7 +60,7 @@ jobs:
             --head-sha "$HEAD_SHA"
 
       - name: Upload dry-run review artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: github-review-artifacts
           path: |
@@ -77,23 +78,37 @@ jobs:
       pull-requests: write
 
     steps:
+      # inputs.pull_number is free text typed into the dispatch form. It reaches
+      # the shell only as the PULL_NUMBER environment variable, never as text
+      # spliced into the script, and must be a positive integer before any API
+      # call uses it.
       - name: Validate pull number
+        env:
+          PULL_NUMBER: ${{ inputs.pull_number }}
         run: |
-          if [ -z "${{ inputs.pull_number }}" ]; then
-            echo "pull_number is required when post_summary is true." >&2
-            exit 1
-          fi
+          case "$PULL_NUMBER" in
+            "")
+              echo "pull_number is required when post_summary is true." >&2
+              exit 1
+              ;;
+            0* | *[!0-9]*)
+              echo "pull_number must be a positive integer without leading zeros." >&2
+              exit 1
+              ;;
+          esac
 
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.11"
 
       - name: Download dry-run review artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: github-review-artifacts
           path: .
@@ -101,9 +116,10 @@ jobs:
       - name: List existing PR comments
         env:
           GH_TOKEN: ${{ github.token }}
+          PULL_NUMBER: ${{ inputs.pull_number }}
         run: |
           mkdir -p reports/github
-          gh api "repos/${{ github.repository }}/issues/${{ inputs.pull_number }}/comments" \
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${PULL_NUMBER}/comments" \
             --paginate > reports/github/existing-comments.json
 
       - name: Decide summary comment action
@@ -117,9 +133,10 @@ jobs:
         if: ${{ steps.decide.outputs.decision == 'create' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          PULL_NUMBER: ${{ inputs.pull_number }}
         run: |
           gh api --method POST \
-            "repos/${{ github.repository }}/issues/${{ inputs.pull_number }}/comments" \
+            "repos/${GITHUB_REPOSITORY}/issues/${PULL_NUMBER}/comments" \
             --input reports/github/summary-comment.json
 
       - name: Patch summary comment
@@ -130,5 +147,5 @@ jobs:
         run: |
           COMMENT_ID="${DECISION#patch }"
           gh api --method PATCH \
-            "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
+            "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" \
             --input reports/github/summary-comment.json

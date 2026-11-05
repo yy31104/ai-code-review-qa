@@ -73,7 +73,7 @@ A 120-commit development corpus from three public Python projects informed attri
 `review_diff()` selects one of two intentional paths:
 
 - `static`: `static_review` rules create visibly labeled `static_rules` findings without a network call;
-- `openai`: the changed-file list and truncated diff are sent to the configured provider and parsed as `ProviderReview`.
+- `openai`: the changed-file list and truncated diff are sent to the configured provider and parsed as `ProviderReview`. `change_context.py` adds the complete innermost function or class around each added line in the sent diff, from the post-change file, fenced by the same boundary marker and capped by its own budget.
 
 `ProviderReview` is deliberately narrower than `ReviewResult`. A model fills a summary and a list of proposed findings, and nothing else. Risk level, review status, provenance, test results and the review decision are computed by the pipeline, so a model response cannot move the merge gate by asserting a field.
 
@@ -83,7 +83,9 @@ Risk starts as a keyword match over the diff text and is then escalated by `esca
 
 ### Finding grounding — `finding_grounding.py`
 
-`ground_findings()` splits findings into grounded and rejected. A finding is grounded when its file is in the diff, its line is one the diff added, and its quoted evidence matches that line after whitespace normalisation. Rejections carry a reason (`file_not_in_diff`, `line_not_added`, `evidence_mismatch`, `binary_file`) and are kept in the artifact rather than dropped silently.
+`ground_findings()` splits findings into grounded and rejected. A finding is grounded when its file is in the diff, its line is one the diff added, and its quoted evidence identifies that line after whitespace normalisation. Rejections carry a reason (`file_not_in_diff`, `line_not_added`, `missing_evidence`, `evidence_too_short`, `evidence_mismatch`, `binary_file`) and are kept in the artifact rather than dropped silently.
+
+Evidence identifies a line when one of the two contains the other and the shared text is at least `MIN_EVIDENCE_CHARS` (20) characters or at least `MIN_EVIDENCE_COVERAGE` (half) of the longer side. A fragment such as `(` or `user` occurs in many lines and is rejected as `evidence_too_short`; a blank or one-character added line no longer matches every quote. A line-anchored finding without a quote is `missing_evidence`. File-level and summary-level findings have no line to quote and need none.
 
 Boundary: grounding establishes attribution. A grounded finding can still be semantically wrong, and a human review remains the decision point.
 
