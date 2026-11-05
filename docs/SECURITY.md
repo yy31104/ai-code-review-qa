@@ -40,7 +40,9 @@ Provider configuration, request, and schema failures must remain explicit non-su
 
 GitHub review payload generation treats diff-derived and model-derived text as untrusted Markdown. The payload builder escapes HTML-sensitive characters, Markdown link and emphasis controls, backticks, mentions, issue autolinks, code-fence breakout attempts, and leading block-level Markdown before placing finding text in comment bodies.
 
-The PR comment workflow is manual-only. Its default build job runs with `contents: read` and posts nothing. The posting job runs only when `post_summary` is explicitly `true`, requires a `pull_number`, and scopes `pull-requests: write` to that posting job only. `pull_request_target` remains forbidden for this project.
+The PR comment workflow is manual-only. Its default build job runs with `contents: read` and posts nothing. The posting job runs only when `post_summary` is explicitly `true`, requires a `pull_number` that is a positive integer, and scopes `pull-requests: write` to that posting job only. `pull_request_target` remains forbidden for this project.
+
+Workflow `run:` scripts contain no `${{ ... }}` expressions. GitHub expands expressions as text before the shell starts, so a dispatch input placed there becomes shell source. Inputs and event values reach scripts through `env:` and are quoted as shell variables. Every third-party action is pinned to a full commit SHA with the release tag in a trailing comment; updating an action means replacing both. Every `actions/checkout` step sets `persist-credentials: false`, so the job token is not left in `.git/config` for later steps; no job pushes or fetches after checkout. `tests/test_workflow_hardening.py` enforces all three rules for every file in `.github/workflows/`.
 
 Posted summary comment bodies are passed to `gh api` with `--input` JSON files, not interpolated into shell commands.
 
