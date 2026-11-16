@@ -57,6 +57,8 @@ Review the latest commit and open `reports/review.html` in a browser:
 AI_REVIEW_MODE=static python backend/app/main.py --repo . --base HEAD~1 --head HEAD --output reports/review.html
 ```
 
+The result depends on the latest commit. Documentation-only changes return `no_changes`; the report still includes test results.
+
 Tests and offline checks take a few seconds locally:
 
 ```bash
@@ -78,7 +80,7 @@ GitHub writes use opt-in workflow gates. Report generation and comment payload c
 ## Limits
 
 - Rules cover Python patterns with lexical matching. Cross-file moves and same-block attribution can cause false positives or missed findings; grounding checks references, and a person judges correctness.
-- On 438 real BugsInPy bugs, the static rules flag the buggy line in at most 3.2% of cases ([report](evals/results/bugsinpy-static.md)); provider recall and real-diff precision remain unmeasured. Rule confidence values are heuristic; provider confidence is shown only when measured as agreement across samples (`AI_REVIEW_CONSISTENCY_SAMPLES`).
+- On 438 real BugsInPy bugs, the static rules flag the buggy line in at most 3.2% of cases ([report](evals/results/bugsinpy-static.md)); LLM review quality and real-diff precision remain unmeasured. Rule confidence values are heuristic; provider confidence is shown only when measured as agreement across samples (`AI_REVIEW_CONSISTENCY_SAMPLES`).
 - Run against trusted checkouts: the CLI executes their detected tests on the host. Provider mode sends filenames, a character-limited diff, and the enclosing functions or classes of changed lines (capped separately) to OpenAI; see [data handling](docs/DATA_HANDLING.md).
 
 ## Docs
