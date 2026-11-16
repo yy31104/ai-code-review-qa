@@ -147,7 +147,7 @@ With a value from 2 to 10, the same request is sent that many times. Each sample
 
 Sampling multiplies provider cost, and the number of times the diff and its enclosing-scope context are sent, by the sample count. Every sample receives the same context. Rule findings keep the fixed confidence each rule assigns, shown as `rule confidence`.
 
-Do not use provider mode for private code unless you are authorized to send that code to the configured provider. Do not put `.env` in a shared archive: `.gitignore` prevents a Git commit, but it does not prevent a generic ZIP command from including the file.
+Check the project's data-sharing rules before sending private code to the configured provider. Keep `.env` out of shared archives. `.gitignore` prevents a Git commit, but a generic ZIP command can still include the file.
 
 ## Tests and deterministic evals
 
