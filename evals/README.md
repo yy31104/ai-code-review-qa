@@ -134,7 +134,7 @@ Read [`LABELING_GUIDE.md`](LABELING_GUIDE.md) before entering verdicts. It fixes
 - **Keep line-level and file-level claims apart.** They are different assertions and a combined average answers neither.
 - **Do not call silence recall.** A commit with no emitted finding may be clean or may contain a missed defect. This workflow measures the precision/noise of emitted findings; recall requires labels for silent cases too.
 
-The committed `verdicts_dev_pass*.jsonl` files predate that rule and contain model-assisted preliminary triage requested by the maintainer. They are development artifacts, carry no machine-readable annotator provenance, and must not support a published metric until a person verifies them.
+The committed `verdicts_dev_pass*.jsonl` files predate that rule and contain model-assisted preliminary triage. They are development artifacts, carry no machine-readable annotator provenance, and must not support a published metric until a person verifies them.
 
 Harvested corpora are gitignored: the diffs belong to their upstream projects and are regenerated from the commands above. Verdict files are keyed by commit SHA and are the part worth committing.
 
