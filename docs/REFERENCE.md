@@ -25,7 +25,7 @@ What the rules deliberately do not do: they read only the lines a diff adds, the
 Four properties are worth more than the rule list itself:
 
 - **A clean diff produces no findings.** The reviewer stays silent rather than emitting generic advice, so a report with findings means something.
-- **A rule fires on what the diff introduced, not on what it touched.** A unified diff marks a line as added when a trailing `# noqa` is deleted, a version bound is bumped, or a type hint is relaxed. The reviewer compares each match against the lines the same change block removed, and stays silent when the construct was already there. On a real corpus this one mechanism accounted for ten of thirteen false positives.
+- **A rule fires on what the diff introduced, not on what it touched.** A unified diff marks a line as added when a trailing `# noqa` is deleted, a version bound is bumped, or a type hint is relaxed. The reviewer compares each match against the lines the same change block removed, and stays silent when the construct was already there. In the development corpus of real commits, this one mechanism accounted for ten of thirteen false positives. Those labels were model-assisted and have not been verified by a person.
 - **Evidence is always a line the diff added.** A statement joined across continuation lines can begin on unchanged context; quoting that context was both misleading and a hole in grounding.
 - **Rules do not read string or comment contents.** `logger.info("never use shell=True")` matches nothing, and overlapping rules report once: a bare `except:` whose body is `pass` reports `swallowed_exception` only.
 
@@ -200,8 +200,9 @@ Fork PRs are skipped by the mutation workflow. It uses `pull_request`, not `pull
 
 ## Known limitations
 
-- No precision number is reported yet. The development corpus has been adjudicated, but it was used to change the rules, so it cannot supply a reported figure.
-- Recall is entirely unmeasured. No sample of silently-reviewed commits has been checked for defects the rules missed.
+- No precision number is reported yet. The development corpus has model-assisted preliminary labels that no person has verified, and it was used to change the rules, so it cannot supply a reported figure.
+- The only recall figure is static: on 438 scorable BugsInPy bugs the rules flag the buggy line in at most 3.2% of cases ([report](../evals/results/bugsinpy-static.md)), an upper bound rather than adjudicated detection.
+- Recall of the LLM path is unmeasured, and so is recall on ordinary pull requests: no sample of silently-reviewed commits has been checked for defects the rules missed.
 - Code moved between files still produces a false positive; attribution only sees one file's change blocks.
 - There is no frozen, labeled real-diff provider evaluation yet, so there is no evidence that the model path beats the rule path.
 - The eval diffs are synthetic and short. Real pull requests are longer, noisier, and will surface false positives these cases do not.
